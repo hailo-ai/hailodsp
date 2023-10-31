@@ -42,6 +42,7 @@
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
 #define MPU_TEST_NSID "mpumpumpumputest"
 #define IDMA_LOOKUP_TEST_NSID "lookupidmalookup"
+#define FIREWALL_TEST_NSID "firewallfirewall"
 #define IMAGING_NSID "imagingnamespace"
 #define IDMA_TEST_BUFFER_SIZE (0x100)
 

@@ -23,33 +23,18 @@
 
 #pragma once
 
+#include "hailo/hailodsp.h"
+#include "user_dsp_interface.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <hailo/hailodsp.h>
-
-#define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-
-#define ROUND_UP(N, S) ((((N) + (S)-1) / (S)) * (S))
-
-__attribute__((unused)) static inline const char *format_arg_to_string(int format)
-{
-    switch (format) {
-        case DSP_IMAGE_FORMAT_GRAY8:
-            return "gray8";
-        case DSP_IMAGE_FORMAT_RGB:
-            return "rgb";
-        case DSP_IMAGE_FORMAT_NV12:
-            return "nv12";
-        case DSP_IMAGE_FORMAT_A420:
-            return "a420";
-        default:
-            return "unknown";
-    }
-}
+dsp_status dsp_dewarp_perf(dsp_device device,
+                           const dsp_image_properties_t *src,
+                           const dsp_image_properties_t *dst,
+                           const dsp_dewarp_mesh_t *mesh,
+                           dsp_interpolation_type_t interpolation,
+                           perf_info_t *perf_info);
 
 #ifdef __cplusplus
 }

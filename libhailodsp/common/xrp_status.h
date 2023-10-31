@@ -23,7 +23,15 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <xrp_api.h>
 
 #define XRP_SUCCESS(xrp_status) ((xrp_status) == XRP_STATUS_SUCCESS)
 #define XRP_FAILURE(xrp_status) ((xrp_status) == XRP_STATUS_FAILURE)
+
+#ifdef __cplusplus
+}
+#endif

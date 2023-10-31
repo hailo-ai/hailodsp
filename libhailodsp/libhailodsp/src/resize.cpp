@@ -194,9 +194,10 @@ dsp_status dsp_resize(dsp_device device, const dsp_resize_params_t *resize_param
     return dsp_resize_perf(device, resize_params, NULL);
 }
 
-dsp_status dsp_multi_crop_and_resize(dsp_device device,
-                                     const dsp_multi_resize_params_t *resize_params,
-                                     const dsp_crop_api_t *crop_params)
+dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
+                                          const dsp_multi_resize_params_t *resize_params,
+                                          const dsp_crop_api_t *crop_params,
+                                          perf_info_t *perf_info)
 {
     if ((!device) || (!resize_params)) {
         LOGGER__ERROR("Error: NULL argument (device={}, resize_params={})\n", fmt::ptr(device),
@@ -263,10 +264,19 @@ dsp_status dsp_multi_crop_and_resize(dsp_device device,
 
     in_data->multi_crop_and_resize_args.dst_count = image_count - 1;
 
-    status = send_command(device, images, image_count, in_data.get(), sizeof(imaging_request_t), NULL, 0);
+    size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
+    status =
+        send_command(device, images, image_count, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
     }
 
     return status;
+}
+
+dsp_status dsp_multi_crop_and_resize(dsp_device device,
+                                     const dsp_multi_resize_params_t *resize_params,
+                                     const dsp_crop_api_t *crop_params)
+{
+    return dsp_multi_crop_and_resize_perf(device, resize_params, crop_params, NULL);
 }

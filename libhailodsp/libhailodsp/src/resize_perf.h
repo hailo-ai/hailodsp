@@ -36,6 +36,11 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
 
 dsp_status dsp_resize_perf(dsp_device device, const dsp_resize_params_t *resize_params, perf_info_t *perf_info);
 
+dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
+                                          const dsp_multi_resize_params_t *resize_params,
+                                          const dsp_crop_api_t *crop_params,
+                                          perf_info_t *perf_info);
+
 #ifdef __cplusplus
 }
 #endif

@@ -20,11 +20,6 @@
 # SOFTWARE.
 #
 
-# cmake-lint: disable=E1120
-# https://github.com/cheshirekow/cmake_format/issues/218
-separate_arguments(LIB_EXTRA_DEFS)
-add_compile_definitions(${LIB_EXTRA_DEFS})
-
 add_library(
   hailodsp SHARED
   src/device_mgmt.cpp
@@ -38,7 +33,14 @@ add_library(
   src/dewarp.cpp
   src/logger.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 0.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.1)
+
+# cmake-lint: disable=E1120
+# https://github.com/cheshirekow/cmake_format/issues/218
+separate_arguments(LIB_EXTRA_DEFS)
+target_compile_definitions(hailodsp PRIVATE ${LIB_EXTRA_DEFS})
+target_compile_options(hailodsp
+                       PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
 
 target_link_libraries(hailodsp PRIVATE xrp spdlog::spdlog)
 

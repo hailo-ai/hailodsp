@@ -23,6 +23,10 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <hailo/hailodsp.h>
 
 #include <stdio.h>
@@ -54,3 +58,7 @@
             free(ptr); \
         }              \
     } while (0)
+
+#ifdef __cplusplus
+}
+#endif

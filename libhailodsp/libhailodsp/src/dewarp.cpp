@@ -22,7 +22,7 @@
  */
 
 #include "aligned_uptr.hpp"
-#include "blur_perf.h"
+#include "dewarp_perf.h"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
@@ -33,11 +33,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
-dsp_status dsp_dewarp(dsp_device device,
-                      const dsp_image_properties_t *src,
-                      const dsp_image_properties_t *dst,
-                      const dsp_dewarp_mesh_t *mesh,
-                      dsp_interpolation_type_t interpolation)
+dsp_status dsp_dewarp_perf(dsp_device device,
+                           const dsp_image_properties_t *src,
+                           const dsp_image_properties_t *dst,
+                           const dsp_dewarp_mesh_t *mesh,
+                           dsp_interpolation_type_t interpolation,
+                           perf_info_t *perf_info)
 {
     if ((!device) || (!src) || (!dst) || (!mesh)) {
         LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, src={}, dst={}, mesh={})\n",
@@ -94,10 +95,22 @@ dsp_status dsp_dewarp(dsp_device device,
         return add_images_to_buffer_group(device, command_images, ARRAY_LENGTH(command_images), buffer_group);
     };
 
-    status = send_command(device, fill_buffer_group, in_data.get(), sizeof(imaging_request_t), NULL, 0);
+    size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
+
+    status =
+        send_command(device, fill_buffer_group, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}\n", status);
     }
 
     return status;
+}
+
+dsp_status dsp_dewarp(dsp_device device,
+                      const dsp_image_properties_t *src,
+                      const dsp_image_properties_t *dst,
+                      const dsp_dewarp_mesh_t *mesh,
+                      dsp_interpolation_type_t interpolation)
+{
+    return dsp_dewarp_perf(device, src, dst, mesh, interpolation, NULL);
 }
