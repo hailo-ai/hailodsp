@@ -33,6 +33,40 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define MESH_SQ_SIZE (64)
+
+static dsp_status verify_mesh_properties(const dsp_dewarp_mesh_t *mesh, const dsp_image_properties_t *dst)
+{
+    if (mesh->mesh_width == 0) {
+        LOGGER__ERROR("Error: mesh width is 0\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (mesh->mesh_height == 0) {
+        LOGGER__ERROR("Error: mesh height is 0\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (mesh->mesh_table == NULL) {
+        LOGGER__ERROR("Error: mesh table pointer is NULL\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto minimum_mesh_width = (dst->width / MESH_SQ_SIZE) + (dst->width % MESH_SQ_SIZE == 0 ? 0 : 1);
+    if (mesh->mesh_width < minimum_mesh_width) {
+        LOGGER__ERROR("Error: mesh width is too small. Minimum mesh width: {}\n", minimum_mesh_width);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto minimum_mesh_height = (dst->height / MESH_SQ_SIZE) + (dst->height % MESH_SQ_SIZE == 0 ? 0 : 1);
+    if (mesh->mesh_height < minimum_mesh_height) {
+        LOGGER__ERROR("Error: mesh height is too small. Minimum mesh height: {}\n", minimum_mesh_height);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return DSP_SUCCESS;
+}
+
 dsp_status dsp_dewarp_perf(dsp_device device,
                            const dsp_image_properties_t *src,
                            const dsp_image_properties_t *dst,
@@ -58,7 +92,27 @@ dsp_status dsp_dewarp_perf(dsp_device device,
         return status;
     }
 
-    // TODO: add more parameters check
+    status = verify_mesh_properties(mesh, dst);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Mesh properties check failed\n");
+        return status;
+    }
+
+    if (src->format != DSP_IMAGE_FORMAT_NV12) {
+        LOGGER__ERROR("Error: Src format ({}) is not supported\n", src->format);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (dst->format != DSP_IMAGE_FORMAT_NV12) {
+        LOGGER__ERROR("Error: Dst format ({}) is not supported\n", dst->format);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if ((interpolation != INTERPOLATION_TYPE_BILINEAR) && (interpolation != INTERPOLATION_TYPE_BICUBIC)) {
+        LOGGER__ERROR("Error: Interpolation type ({}) not supported\n", interpolation);
+        return DSP_INVALID_ARGUMENT;
+    }
+
     size_t mesh_line_stride = mesh->mesh_width * 2 * 4;
     size_t mesh_size = mesh_line_stride * mesh->mesh_height;
 
@@ -67,7 +121,6 @@ dsp_status dsp_dewarp_perf(dsp_device device,
     in_data->dewarp_args.interpolation = interpolation;
     in_data->dewarp_args.mesh_width = mesh->mesh_width;
     in_data->dewarp_args.mesh_height = mesh->mesh_height;
-    in_data->dewarp_args.mesh_sq_size = mesh->mesh_sq_size;
     in_data->dewarp_args.mesh.plane_size = mesh_size;
     in_data->dewarp_args.mesh.line_stride = mesh_line_stride;
 

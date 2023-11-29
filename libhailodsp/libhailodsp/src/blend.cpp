@@ -77,7 +77,7 @@ dsp_status dsp_blend_perf(dsp_device device,
     }
 
     if (image->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Image format ({}) is not supported\n", image->format);
+        LOGGER__ERROR("Error: Image format ({}) is not supported\n", format_arg_to_string(image->format));
         return DSP_INVALID_ARGUMENT;
     }
 

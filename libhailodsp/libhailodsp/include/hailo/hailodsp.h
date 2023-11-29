@@ -209,7 +209,7 @@ dsp_status dsp_release_buffer(dsp_device device, void *buffer);
  */
 
 /** Maximum number of outputs supported in ::dsp_multi_crop_and_resize */
-#define DSP_MULTI_RESIZE_OUTPUTS_COUNT (5)
+#define DSP_MULTI_RESIZE_OUTPUTS_COUNT (7)
 
 /** Resize parameters */
 typedef struct {
@@ -391,19 +391,17 @@ dsp_status dsp_convert_format(dsp_device device, const dsp_image_properties_t *s
  */
 
 /** Grid of pixel coordinates in the input image, corresponding to even grid in the output image.
- * The grid cells in the output image are squares with size :mesh_sq_size. They have to cover the
+ * The grid cells in the output image are squares with size 64. They have to cover the
  * whole output image.
  */
 typedef struct {
     /** Number of vertices in horizontal */
-    int mesh_width;
+    size_t mesh_width;
     /** Number of vertices in vertical */
-    int mesh_height;
-    /** Output cell size in pixels. Must be 64. This field will be removed in the future */
-    int mesh_sq_size;
+    size_t mesh_height;
     /** Pointer to vertices, ordered x,y,x,y,....
      * Numbers are Q15.16. */
-    int *mesh_table;
+    void *mesh_table;
 } dsp_dewarp_mesh_t;
 
 /**

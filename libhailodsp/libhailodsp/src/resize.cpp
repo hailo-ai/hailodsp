@@ -119,7 +119,8 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
             break;
 
         default:
-            LOGGER__ERROR("Error: The src-dst formats are not supported\n");
+            LOGGER__ERROR("Error: The src/dst format ({}) is not supported\n",
+                          format_arg_to_string(resize_params->src->format));
             return DSP_INVALID_ARGUMENT;
     }
 
@@ -221,6 +222,11 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         return status;
     }
 
+    if (resize_params->src->format != DSP_IMAGE_FORMAT_NV12) {
+        LOGGER__ERROR("Error: Src format ({}) is not supported\n", format_arg_to_string(resize_params->src->format));
+        return DSP_INVALID_ARGUMENT;
+    }
+
     for (int i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; ++i) {
         auto dst_image = resize_params->dst[i];
         if (dst_image == NULL)
@@ -231,9 +237,19 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
             LOGGER__ERROR("Error: Image properties check failed for \"dst[{}]\"\n", i);
             return status;
         }
+
+        if (dst_image->format != DSP_IMAGE_FORMAT_NV12) {
+            LOGGER__ERROR("Error: Dst[{}] format ({}) is not supported\n", i, format_arg_to_string(dst_image->format));
+            return DSP_INVALID_ARGUMENT;
+        }
     }
 
-    // TODO interpolation and format checks
+    if ((resize_params->interpolation != INTERPOLATION_TYPE_BILINEAR) &&
+        (resize_params->interpolation != INTERPOLATION_TYPE_BICUBIC)) {
+        LOGGER__ERROR("Error: Interpolation type ({}) not supported\n", resize_params->interpolation);
+        return DSP_INVALID_ARGUMENT;
+    }
+
     auto in_data = make_aligned_uptr<imaging_request_t>();
     in_data->operation = IMAGING_OP_MULTI_CROP_AND_RESIZE;
     in_data->multi_crop_and_resize_args.interpolation = resize_params->interpolation;

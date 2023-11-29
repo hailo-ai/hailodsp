@@ -44,42 +44,42 @@
 #define XRP_IOCTL_QUEUE_NS	_IO(XRP_IOCTL_MAGIC, 4)
 
 struct xrp_ioctl_alloc {
-	__u32 size;
-	__u32 align;
-	__u64 addr;
+    __u32 size;
+    __u32 align;
+    __u64 addr;
 };
 
-enum {
-	XRP_FLAG_READ = 0x1,
-	XRP_FLAG_WRITE = 0x2,
-	XRP_FLAG_READ_WRITE = 0x3,
+enum ioctl_buffer_flags {
+    XRP_FLAG_READ = 0x1,
+    XRP_FLAG_WRITE = 0x2,
+    XRP_FLAG_READ_WRITE = 0x3,
 };
 
 struct xrp_ioctl_buffer {
-	__u32 flags;
-	__u32 size;
-	__u64 addr;
+    __u32 flags;
+    __u32 size;
+    __u64 addr;
 };
 
 enum {
-	XRP_QUEUE_FLAG_NSID = 0x4,
-	XRP_QUEUE_FLAG_PRIO = 0xff00,
-	XRP_QUEUE_FLAG_PRIO_SHIFT = 8,
+    XRP_QUEUE_FLAG_NSID = 0x4,
+    XRP_QUEUE_FLAG_PRIO = 0xff00,
+    XRP_QUEUE_FLAG_PRIO_SHIFT = 8,
 
-	XRP_QUEUE_VALID_FLAGS =
-		XRP_QUEUE_FLAG_NSID |
-		XRP_QUEUE_FLAG_PRIO,
+    XRP_QUEUE_VALID_FLAGS =
+        XRP_QUEUE_FLAG_NSID |
+        XRP_QUEUE_FLAG_PRIO,
 };
 
 struct xrp_ioctl_queue {
-	__u32 flags;
-	__u32 in_data_size;
-	__u32 out_data_size;
-	__u32 buffer_size;
-	__u64 in_data_addr;
-	__u64 out_data_addr;
-	__u64 buffer_addr;
-	__u64 nsid_addr;
+    __u32 flags;
+    __u32 in_data_size;
+    __u32 out_data_size;
+    __u32 buffer_size;
+    __u64 in_data_addr;
+    __u64 out_data_addr;
+    __u64 buffer_addr;
+    __u64 nsid_addr;
 };
 
 #endif

@@ -33,7 +33,7 @@ add_library(
   src/dewarp.cpp
   src/logger.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.1.2)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

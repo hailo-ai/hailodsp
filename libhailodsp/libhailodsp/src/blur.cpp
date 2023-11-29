@@ -110,7 +110,7 @@ dsp_status dsp_blur_perf(dsp_device device,
             break;
 
         default:
-            LOGGER__ERROR("Error: Image format ({}) is not supported\n", image->format);
+            LOGGER__ERROR("Error: Image format ({}) is not supported\n", format_arg_to_string(image->format));
             return DSP_INVALID_ARGUMENT;
     }
 

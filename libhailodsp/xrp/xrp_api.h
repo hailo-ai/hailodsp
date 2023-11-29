@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016 - 2017 Cadence Design Systems Inc.
+ * Copyright (c) 2023 Hailo Technologies Ltd. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -93,8 +94,6 @@ enum xrp_buffer_group_info {
 	/*! Number of buffers in the buffer group. Buffer index is ignored. */
 	XRP_BUFFER_GROUP_SIZE_SIZE_T,
 };
-
-#define XRP_NAMESPACE_ID_SIZE	16
 
 /*!
  * \defgroup device_api Device API
@@ -528,6 +527,27 @@ typedef enum xrp_status
 		      const void *in_data, size_t in_data_size,
 		      void *out_data, size_t out_data_size,
 		      struct xrp_buffer_group *buffer_group);
+
+#define XRP_NAMESPACE_ID_SIZE	16
+
+struct xrp_cmd_ns {
+    /*! namespace identifier. */
+    char id[XRP_NAMESPACE_ID_SIZE];
+    /*! pointer to the handler function. */
+    xrp_command_handler *handler;
+    /*! first argument that will be passed to the handler function. */
+    void *handler_context;
+};
+
+/*!
+ * Init the map which will hold the namespace handlers.
+ *
+ * \param device: device for which namespace handler is registered
+ * \param cmd_ns: pointer to an array which will hold the map
+ * \param cmd_ns_size: number of elements in the array
+ * \param[out] status: operation status
+ */
+void xrp_device_init_ns_map(struct xrp_device *device, struct xrp_cmd_ns *cmd_ns, size_t cmd_ns_size, enum xrp_status *status);
 
 /*!
  * Register namespace handler.

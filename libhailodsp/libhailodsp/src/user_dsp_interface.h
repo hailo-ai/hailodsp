@@ -36,7 +36,7 @@
 #define MAX_PLANES (4)
 #define MAX_BLEND_OVERLAYS (50)
 #define MAX_BLUR_ROIS (80)
-#define INTERFACE_MULTI_RESIZE_OUTPUTS_COUNT (5)
+#define INTERFACE_MULTI_RESIZE_OUTPUTS_COUNT (7)
 
 #define IDMA_TEST_NSID "idmaidmaidmaidma"
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
@@ -134,7 +134,6 @@ typedef struct {
     data_plane_t mesh;
     uint32_t mesh_width;
     uint32_t mesh_height;
-    uint32_t mesh_sq_size;
     uint8_t interpolation;
 } dewarp_in_data_t;
 
@@ -151,7 +150,6 @@ typedef struct {
 } imaging_request_t;
 
 typedef struct {
-    uint32_t xrp_handler;
     uint32_t get_arg_params_context;
     uint32_t process_tiles_total;
     uint32_t process_tiles_setup;
@@ -163,6 +161,25 @@ typedef struct {
     uint32_t in_dma_config;
     uint32_t out_dma_config;
     uint32_t tiles_count;
+} fik_perf_into_t;
+
+typedef struct {
+    uint32_t y_plane_process_and_dma;
+    uint32_t uv_plane_process_and_dma;
+    uint32_t mesh_dma;
+    uint32_t dma_y_in_wait;
+    uint32_t dma_y_out_wait;
+    uint32_t y_padding;
+    uint32_t y_coord_and_coeff_calc;
+    uint32_t y_process;
+} dewarp_perf_info_t;
+
+typedef struct {
+    uint32_t xrp_handler;
+    union {
+        fik_perf_into_t fik;
+        dewarp_perf_info_t dewarp;
+    };
 } perf_info_t;
 
 #endif //_USER_DSP_INTERFACE_H
