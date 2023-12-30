@@ -187,6 +187,16 @@ void xrp_unmap_buffer(struct xrp_buffer *buffer, void *p,
 void xrp_buffer_get_info(struct xrp_buffer *buffer, enum xrp_buffer_info info,
 			 void *out, size_t out_sz, enum xrp_status *status);
 
+enum xrp_sync_access_time {
+    XRP_BUFFER_SYNC_START,
+    XRP_BUFFER_SYNC_END,
+};
+
+void xrp_sync_device_buffer(struct xrp_buffer *buffer,
+							enum xrp_access_flags direction,
+							enum xrp_sync_access_time access_time,
+							enum xrp_status *status);
+
 /*!
  * @}
  */

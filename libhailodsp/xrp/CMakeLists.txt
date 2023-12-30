@@ -22,7 +22,7 @@
 
 project(libxrp LANGUAGES C)
 
-set(TARGET xrp)
+set(TARGET libhailodsp-xrp)
 
 add_library(${TARGET} xrp_threaded_queue.c xrp_host_common.c hosted/xrp_linux.c)
 

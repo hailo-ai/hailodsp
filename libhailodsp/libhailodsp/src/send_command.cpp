@@ -24,6 +24,7 @@
 #include "device.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
+#include "logger_macros.hpp"
 #include "send_command.hpp"
 
 dsp_status add_buffer_to_buffer_group(dsp_device device,
@@ -116,6 +117,9 @@ dsp_status send_command(dsp_device device,
 
     xrp_run_command_ioctl(device->xrp_queue, in_data, in_data_size, out_data, out_data_size, buffer_group, &xrp_status);
     if (xrp_status != XRP_STATUS_SUCCESS) {
+        LOGGER__ERROR(
+            "Error: DSP operation failed. For more information check Kernel log (dmesg) and DSP firmware log (cat "
+            "/dev/xvp_log0)");
         status = DSP_RUN_COMMAND_FAILED;
         goto l_err;
     }

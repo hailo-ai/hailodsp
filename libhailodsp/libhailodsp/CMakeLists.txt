@@ -33,7 +33,7 @@ add_library(
   src/dewarp.cpp
   src/logger.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.1.2)
+set_target_properties(hailodsp PROPERTIES VERSION 1.2)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218
@@ -42,7 +42,7 @@ target_compile_definitions(hailodsp PRIVATE ${LIB_EXTRA_DEFS})
 target_compile_options(hailodsp
                        PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
 
-target_link_libraries(hailodsp PRIVATE xrp spdlog::spdlog)
+target_link_libraries(hailodsp PRIVATE libhailodsp-xrp spdlog::spdlog)
 
 target_include_directories(hailodsp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(hailodsp PRIVATE ${PROJECT_SOURCE_DIR}/common)

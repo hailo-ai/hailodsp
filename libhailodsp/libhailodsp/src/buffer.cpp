@@ -35,6 +35,11 @@ typedef struct {
     char data[];
 } __attribute__((packed)) dsp_buffer_t;
 
+static dsp_buffer_t *dsp_buffer_from_ptr(void *buffer)
+{
+    return (dsp_buffer_t *)((uint8_t *)buffer - sizeof(dsp_buffer_t));
+}
+
 dsp_status dsp_create_buffer(dsp_device device, size_t size, void **buffer)
 {
     dsp_status status = DSP_UNINITIALIZED;
@@ -93,7 +98,7 @@ dsp_status dsp_release_buffer(dsp_device device, void *buffer)
         return status;
     }
 
-    dsp_buffer_t *dsp_buffer = (dsp_buffer_t *)((uint8_t *)buffer - sizeof(*dsp_buffer));
+    dsp_buffer_t *dsp_buffer = dsp_buffer_from_ptr(buffer);
     struct xrp_buffer *xrp_buffer = dsp_buffer->metadata;
 
     xrp_unmap_buffer(xrp_buffer, buffer, &xrp_status);
@@ -107,4 +112,38 @@ dsp_status dsp_release_buffer(dsp_device device, void *buffer)
     status = DSP_SUCCESS;
 
     return status;
+}
+
+static_assert((int)DSP_BUFFER_SYNC_READ == (int)XRP_READ, "dsp_sync_direction_t must be identical to xrp_access_flags");
+static_assert((int)DSP_BUFFER_SYNC_WRITE == (int)XRP_WRITE,
+              "dsp_sync_direction_t must be identical to xrp_access_flags");
+static_assert((int)DSP_BUFFER_SYNC_RW == (int)XRP_READ_WRITE,
+              "dsp_sync_direction_t must be identical to xrp_access_flags");
+
+static dsp_status dsp_buffer_sync(void *buffer, dsp_sync_direction_t direction, enum xrp_sync_access_time access_time)
+{
+    enum xrp_status xrp_status;
+
+    if (!buffer) {
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    dsp_buffer_t *dsp_buffer = dsp_buffer_from_ptr(buffer);
+    struct xrp_buffer *xrp_buffer = dsp_buffer->metadata;
+    xrp_sync_device_buffer(xrp_buffer, (enum xrp_access_flags)direction, access_time, &xrp_status);
+    if (XRP_FAILURE(xrp_status)) {
+        return DSP_SYNC_BUFFER_FAILED;
+    }
+
+    return DSP_SUCCESS;
+}
+
+dsp_status dsp_buffer_sync_start(void *buffer, dsp_sync_direction_t direction)
+{
+    return dsp_buffer_sync(buffer, direction, XRP_BUFFER_SYNC_START);
+}
+
+dsp_status dsp_buffer_sync_end(void *buffer, dsp_sync_direction_t direction)
+{
+    return dsp_buffer_sync(buffer, direction, XRP_BUFFER_SYNC_END);
 }

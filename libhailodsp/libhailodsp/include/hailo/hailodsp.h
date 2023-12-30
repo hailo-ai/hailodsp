@@ -52,6 +52,7 @@ typedef enum {
     DSP_RUN_COMMAND_FAILED,         /**< Failed running the requested command. Check Kernel or FW logs */
     DSP_MAP_BUFFER_FAILED,          /**< Failed mapping buffer */
     DSP_UNMAP_BUFFER_FAILED,        /**< Failed unmapping buffer */
+    DSP_SYNC_BUFFER_FAILED,         /**< Failed synching buffer */
 
     DSP_STATUS_COUNT,                  /* Must be last */
     DSP_STATUS_MAX_ENUM = DSP_MAX_ENUM /**< Max enum value to maintain ABI Integrity */
@@ -200,6 +201,40 @@ dsp_status dsp_create_buffer(dsp_device device, size_t size, void **buffer);
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_release_buffer(dsp_device device, void *buffer);
+
+/**
+ * @brief Enum representing the synchronization direction for DSP buffers.
+ */
+typedef enum {
+    /** Synchronize the buffer for reading */
+    DSP_BUFFER_SYNC_READ = 1,
+    /** Synchronize the buffer for writing */
+    DSP_BUFFER_SYNC_WRITE,
+    /** Synchronize the buffer for both reading and writing */
+    DSP_BUFFER_SYNC_RW,
+} dsp_sync_direction_t;
+
+/**
+ * @brief Synchronizes a DSP buffer before access
+ * @details If a buffer was created with ::dsp_create_buffer, and was used by the DSP,
+ *          (or any other hardware device external to the CPU), it might be out of sync from the CPU's perspective.
+ *          This function ensures that the CPU sees the correct buffer data before access
+ * @param buffer A buffer to be synchronized. Must be a buffer created using ::dsp_create_buffer
+ * @param direction One of ::dsp_sync_direction_t - depends on the operations performed on the buffer
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_buffer_sync_start(void *buffer, dsp_sync_direction_t direction);
+
+/**
+ * @brief Synchronizes a DSP buffer after access
+ * @details If a buffer was created with ::dsp_create_buffer, and was used by the CPU,
+ *          it might be out of sync from the DSP's perspective (or any other hardware device external to the CPU).
+ *          This function ensures that external devices see the correct buffer after CPU access
+ * @param buffer A buffer to be synchronized. Must be a buffer created using ::dsp_create_buffer
+ * @param direction One of ::dsp_sync_direction_t - depends on the operations performed on the buffer
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_buffer_sync_end(void *buffer, dsp_sync_direction_t direction);
 
 /**
  *  @}
