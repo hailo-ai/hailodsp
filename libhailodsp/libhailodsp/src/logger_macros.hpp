@@ -27,11 +27,7 @@
 
 /* Minimum log level availble at compile time */
 #ifndef SPDLOG_ACTIVE_LEVEL
-#ifndef NDEBUG
 #define SPDLOG_ACTIVE_LEVEL (SPDLOG_LEVEL_DEBUG)
-#else
-#define SPDLOG_ACTIVE_LEVEL (SPDLOG_LEVEL_INFO)
-#endif
 #endif
 
 #include <spdlog/fmt/ostr.h>
@@ -53,20 +49,22 @@ constexpr bool string_not_printf_format(char const *str)
     return true;
 }
 
+std::shared_ptr<spdlog::logger> get_hailodsp_logger();
+
 #define EXPAND(x) x
 #define ASSERT_NOT_PRINTF_FORMAT(fmt, ...) \
     static_assert(string_not_printf_format(fmt), "Error - Log string is in printf format and not in fmtlib format!")
 
-#define LOGGER_TO_SPDLOG(level, ...)                   \
-    do {                                               \
-        EXPAND(ASSERT_NOT_PRINTF_FORMAT(__VA_ARGS__)); \
-        level(__VA_ARGS__);                            \
+#define LOGGER_TO_SPDLOG(level, ...)                                   \
+    do {                                                               \
+        EXPAND(ASSERT_NOT_PRINTF_FORMAT(__VA_ARGS__));                 \
+        SPDLOG_LOGGER_CALL(get_hailodsp_logger(), level, __VA_ARGS__); \
     } while (0) // NOLINT: clang complains about this code never executing
 
-#define LOGGER__TRACE(...) LOGGER_TO_SPDLOG(SPDLOG_TRACE, __VA_ARGS__)
-#define LOGGER__DEBUG(...) LOGGER_TO_SPDLOG(SPDLOG_DEBUG, __VA_ARGS__)
-#define LOGGER__INFO(...) LOGGER_TO_SPDLOG(SPDLOG_INFO, __VA_ARGS__)
-#define LOGGER__WARN(...) LOGGER_TO_SPDLOG(SPDLOG_WARN, __VA_ARGS__)
+#define LOGGER__TRACE(...) LOGGER_TO_SPDLOG(spdlog::level::trace, __VA_ARGS__)
+#define LOGGER__DEBUG(...) LOGGER_TO_SPDLOG(spdlog::level::debug, __VA_ARGS__)
+#define LOGGER__INFO(...) LOGGER_TO_SPDLOG(spdlog::level::info, __VA_ARGS__)
+#define LOGGER__WARN(...) LOGGER_TO_SPDLOG(spdlog::level::warn, __VA_ARGS__)
 #define LOGGER__WARNING LOGGER__WARN
-#define LOGGER__ERROR(...) LOGGER_TO_SPDLOG(SPDLOG_ERROR, __VA_ARGS__)
-#define LOGGER__CRITICAL(...) LOGGER_TO_SPDLOG(SPDLOG_CRITICAL, __VA_ARGS__)
+#define LOGGER__ERROR(...) LOGGER_TO_SPDLOG(spdlog::level::err, __VA_ARGS__)
+#define LOGGER__CRITICAL(...) LOGGER_TO_SPDLOG(spdlog::level::critical, __VA_ARGS__)

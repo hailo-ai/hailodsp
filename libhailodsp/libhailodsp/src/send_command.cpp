@@ -23,129 +23,50 @@
 
 #include "device.hpp"
 #include "hailo/hailodsp.h"
+#include "hailodsp_driver.hpp"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
 #include "send_command.hpp"
 
-dsp_status add_buffer_to_buffer_group(dsp_device device,
-                                      void *buffer,
-                                      size_t buffer_size,
-                                      enum xrp_access_flags access_flags,
-                                      struct xrp_buffer_group *buffer_group,
-                                      uint32_t *buffer_index)
+dsp_status add_images_to_buffer_list(BufferList &buffer_list, std::vector<command_image_t> images)
 {
-    enum xrp_status xrp_status;
-    dsp_status status = DSP_UNINITIALIZED;
+    for (auto &image : images) {
+        auto status = convert_image(image.user_api_image, image.dsp_api_image);
+        if (status != DSP_SUCCESS) {
+            return status;
+        }
 
-    auto xrp_buffer = xrp_create_buffer(device->xrp_device, buffer_size, buffer, &xrp_status);
-    if (xrp_status != XRP_STATUS_SUCCESS) {
-        status = DSP_CREATE_BUFFER_FAILED;
-        goto l_err;
+        for (size_t j = 0; j < image.dsp_api_image->planes_count; j++) {
+            image.dsp_api_image->planes[j].xrp_buffer_index =
+                buffer_list.add_plane(image.user_api_image->planes[j], image.access_type, image.user_api_image->memory);
+        }
     }
 
-    *buffer_index = xrp_add_buffer_to_group(buffer_group, xrp_buffer, access_flags, &xrp_status);
-    if (xrp_status != XRP_STATUS_SUCCESS) {
-        status = DSP_ADD_BUFFER_GROUP_FAILED;
-        goto l_err;
-    }
-
-    status = DSP_SUCCESS;
-
-l_err:
-    (void)xrp_release_buffer(xrp_buffer);
-
-    return status;
+    return DSP_SUCCESS;
 }
 
-dsp_status add_image_to_buffer_group(dsp_device device,
-                                     const command_image_t *image,
-                                     struct xrp_buffer_group *buffer_group)
+dsp_status send_command(dsp_device device,
+                        BufferList &buffer_list,
+                        const void *in_data,
+                        size_t in_data_size,
+                        void *out_data,
+                        size_t out_data_size)
 {
-    auto status = convert_image(image->user_api_image, image->dsp_api_image);
+    return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data, out_data_size);
+}
+
+dsp_status send_command(dsp_device device,
+                        std::vector<command_image_t> images,
+                        const void *in_data,
+                        size_t in_data_size,
+                        void *out_data,
+                        size_t out_data_size)
+{
+    BufferList buffer_list;
+    auto status = add_images_to_buffer_list(buffer_list, images);
     if (status != DSP_SUCCESS) {
         return status;
     }
 
-    for (size_t i = 0; i < image->user_api_image->planes_count; i++) {
-        dsp_data_plane_t *plane = &image->user_api_image->planes[i];
-
-        status = add_buffer_to_buffer_group(device, plane->userptr, plane->bytesused, image->access_flags, buffer_group,
-                                            &image->dsp_api_image->planes[i].xrp_buffer_index);
-        if (status != DSP_SUCCESS) {
-            return status;
-        }
-    }
-
-    return DSP_SUCCESS;
-}
-
-dsp_status add_images_to_buffer_group(dsp_device device,
-                                      const command_image_t images[],
-                                      size_t images_count,
-                                      struct xrp_buffer_group *buffer_group)
-{
-    for (size_t i = 0; i < images_count; ++i) {
-        auto status = add_image_to_buffer_group(device, &images[i], buffer_group);
-        if (status != DSP_SUCCESS) {
-            return status;
-        }
-    }
-    return DSP_SUCCESS;
-}
-
-dsp_status send_command(dsp_device device,
-                        fill_buffer_group_t fill_buffer_group,
-                        const void *in_data,
-                        size_t in_data_size,
-                        void *out_data,
-                        size_t out_data_size)
-{
-    dsp_status status = DSP_UNINITIALIZED;
-    enum xrp_status xrp_status;
-    struct xrp_buffer_group *buffer_group = NULL;
-
-    buffer_group = xrp_create_buffer_group(&xrp_status);
-    if (xrp_status != XRP_STATUS_SUCCESS) {
-        status = DSP_CREATE_BUFFER_GROUP_FAILED;
-        goto l_err;
-    }
-
-    status = fill_buffer_group(device, buffer_group);
-    if (status != DSP_SUCCESS) {
-        goto l_err;
-    }
-
-    xrp_run_command_ioctl(device->xrp_queue, in_data, in_data_size, out_data, out_data_size, buffer_group, &xrp_status);
-    if (xrp_status != XRP_STATUS_SUCCESS) {
-        LOGGER__ERROR(
-            "Error: DSP operation failed. For more information check Kernel log (dmesg) and DSP firmware log (cat "
-            "/dev/xvp_log0)");
-        status = DSP_RUN_COMMAND_FAILED;
-        goto l_err;
-    }
-
-    status = DSP_SUCCESS;
-
-l_err:
-    if (buffer_group != NULL) {
-        xrp_release_buffer_group(buffer_group);
-    }
-
-    return status;
-}
-
-dsp_status send_command(dsp_device device,
-                        const command_image_t images[],
-                        size_t images_count,
-                        const void *in_data,
-                        size_t in_data_size,
-                        void *out_data,
-                        size_t out_data_size)
-{
-    fill_buffer_group_t fill_buffer_group = [&images, images_count](dsp_device device,
-                                                                    struct xrp_buffer_group *buffer_group) {
-        return add_images_to_buffer_group(device, images, images_count, buffer_group);
-    };
-
-    return send_command(device, fill_buffer_group, in_data, in_data_size, out_data, out_data_size);
+    return send_command(device, buffer_list, in_data, in_data_size, out_data, out_data_size);
 }

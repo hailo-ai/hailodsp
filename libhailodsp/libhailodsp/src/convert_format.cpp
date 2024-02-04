@@ -74,22 +74,21 @@ dsp_status dsp_convert_format_perf(dsp_device device,
     auto in_data = make_aligned_uptr<imaging_request_t>();
     in_data->operation = IMAGING_OP_CONVERT_FORMAT;
 
-    command_image_t images[] = {
+    std::vector<command_image_t> images = {
         {
             .user_api_image = src,
             .dsp_api_image = &in_data->convert_format_args.src,
-            .access_flags = XRP_READ,
+            .access_type = BufferAccessType::Read,
         },
         {
             .user_api_image = dst,
             .dsp_api_image = &in_data->convert_format_args.dst,
-            .access_flags = XRP_WRITE,
+            .access_type = BufferAccessType::Write,
         },
     };
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, images, ARRAY_LENGTH(images), in_data.get(), sizeof(imaging_request_t), perf_info,
-                          perf_info_size);
+    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing format conversion operation. Error code: {}\n", status);
     }

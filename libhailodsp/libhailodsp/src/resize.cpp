@@ -34,7 +34,7 @@
 #include <utils.h>
 
 // This function assumes that "image" params is already checked for correctness
-static dsp_status verify_crop_params(const dsp_image_properties_t *image, const dsp_crop_api_t *crop_params)
+static dsp_status verify_crop_params(const dsp_image_properties_t *image, const dsp_roi_t *crop_params)
 {
     if (!image || !crop_params) {
         LOGGER__ERROR("Error: NULL argument (image={}, crop_params={})\n", fmt::ptr(image), fmt::ptr(crop_params));
@@ -68,9 +68,73 @@ static dsp_status verify_crop_params(const dsp_image_properties_t *image, const 
     return DSP_SUCCESS;
 }
 
+// This function assumes that "image" params is already checked for correctness
+static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image,
+                                             const dsp_privacy_mask_t *privacy_mask_params)
+{
+    // privacy mask is optional
+    if (!privacy_mask_params) {
+        return DSP_SUCCESS;
+    }
+
+    if (!image || !privacy_mask_params->bitmask) {
+        LOGGER__ERROR("Error: NULL argument (image={}, privacy_mask_params->bitmask={})\n", fmt::ptr(image),
+                      fmt::ptr(privacy_mask_params->bitmask));
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (privacy_mask_params->rois_count == 0) {
+        LOGGER__ERROR("Error: Must have at least 1 ROI\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (privacy_mask_params->rois_count > MAX_PRIVACY_MASK_ROIS) {
+        LOGGER__ERROR("Error: Too many ROIs. The operation supports up to {} ROIs\n", MAX_PRIVACY_MASK_ROIS);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
+        dsp_roi_t *roi_params = &privacy_mask_params->rois[i];
+        bool invalid_roi = false;
+
+        if (roi_params->start_x >= roi_params->end_x) {
+            LOGGER__ERROR("Error: ROI start_x ({}) must be smaller then end_x ({})\n", roi_params->start_x,
+                          roi_params->end_x);
+            invalid_roi = true;
+        }
+
+        if (roi_params->start_y >= roi_params->end_y) {
+            LOGGER__ERROR("Error: ROI start_y ({}) must be smaller then end_y ({})\n", roi_params->start_y,
+                          roi_params->end_y);
+            invalid_roi = true;
+        }
+
+        const size_t bitmask_width = ceil(image->width / (float)PRIVACY_MASK_QUANTIZATION);
+        if (roi_params->end_x > bitmask_width) {
+            LOGGER__ERROR("Error: ROI end_x ({}) must be smaller or equal to quantized bitmask width ({})\n",
+                          roi_params->end_x, bitmask_width);
+            invalid_roi = true;
+        }
+
+        const size_t bitmask_height = ceil(image->height / (float)PRIVACY_MASK_QUANTIZATION);
+        if (roi_params->end_y > bitmask_height) {
+            LOGGER__ERROR("Error: ROI end_y ({}) must be smaller or equal to quantized bitmask height ({})\n",
+                          roi_params->end_y, bitmask_height);
+            invalid_roi = true;
+        }
+
+        if (invalid_roi) {
+            LOGGER__ERROR("Error: ROI properties check failed for \"roi[{}]\"\n", i);
+            return DSP_INVALID_ARGUMENT;
+        }
+    }
+
+    return DSP_SUCCESS;
+}
+
 dsp_status dsp_crop_and_resize_perf(dsp_device device,
                                     const dsp_resize_params_t *resize_params,
-                                    const dsp_crop_api_t *crop_params,
+                                    const dsp_roi_t *crop_params,
                                     perf_info_t *perf_info)
 {
     if ((!device) || (!resize_params)) {
@@ -138,22 +202,21 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     in_data->crop_and_resize_args.crop_end_x = crop_params->end_x;
     in_data->crop_and_resize_args.crop_end_y = crop_params->end_y;
 
-    command_image_t images[] = {
+    std::vector<command_image_t> images = {
         {
             .user_api_image = resize_params->src,
             .dsp_api_image = &in_data->crop_and_resize_args.src,
-            .access_flags = XRP_READ,
+            .access_type = BufferAccessType::Read,
         },
         {
             .user_api_image = resize_params->dst,
             .dsp_api_image = &in_data->crop_and_resize_args.dst,
-            .access_flags = XRP_WRITE,
+            .access_type = BufferAccessType::Write,
         },
     };
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, images, ARRAY_LENGTH(images), in_data.get(), sizeof(imaging_request_t), perf_info,
-                          perf_info_size);
+    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
     }
@@ -173,7 +236,7 @@ dsp_status dsp_resize_perf(dsp_device device, const dsp_resize_params_t *resize_
         return DSP_INVALID_ARGUMENT;
     }
 
-    dsp_crop_api_t crop_params = {
+    dsp_roi_t crop_params = {
         .start_x = 0,
         .start_y = 0,
         .end_x = resize_params->src->width,
@@ -185,7 +248,7 @@ dsp_status dsp_resize_perf(dsp_device device, const dsp_resize_params_t *resize_
 
 dsp_status dsp_crop_and_resize(dsp_device device,
                                const dsp_resize_params_t *resize_params,
-                               const dsp_crop_api_t *crop_params)
+                               const dsp_roi_t *crop_params)
 {
     return dsp_crop_and_resize_perf(device, resize_params, crop_params, NULL);
 }
@@ -197,7 +260,8 @@ dsp_status dsp_resize(dsp_device device, const dsp_resize_params_t *resize_param
 
 dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
                                           const dsp_multi_resize_params_t *resize_params,
-                                          const dsp_crop_api_t *crop_params,
+                                          const dsp_roi_t *crop_params,
+                                          const dsp_privacy_mask_t *privacy_mask_params,
                                           perf_info_t *perf_info)
 {
     if ((!device) || (!resize_params)) {
@@ -209,6 +273,12 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     auto status = verify_crop_params(resize_params->src, crop_params);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Crop parameters check failed\n");
+        return status;
+    }
+
+    status = verify_privacy_mask_params(resize_params->src, privacy_mask_params);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Privacy mask parameters check failed\n");
         return status;
     }
 
@@ -251,38 +321,66 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     }
 
     auto in_data = make_aligned_uptr<imaging_request_t>();
-    in_data->operation = IMAGING_OP_MULTI_CROP_AND_RESIZE;
+    in_data->operation =
+        privacy_mask_params ? IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK : IMAGING_OP_MULTI_CROP_AND_RESIZE;
     in_data->multi_crop_and_resize_args.interpolation = resize_params->interpolation;
     in_data->multi_crop_and_resize_args.crop_start_x = crop_params->start_x;
     in_data->multi_crop_and_resize_args.crop_start_y = crop_params->start_y;
     in_data->multi_crop_and_resize_args.crop_end_x = crop_params->end_x;
     in_data->multi_crop_and_resize_args.crop_end_y = crop_params->end_y;
 
-    command_image_t images[1 + DSP_MULTI_RESIZE_OUTPUTS_COUNT] = {
-        {
-            .user_api_image = resize_params->src,
-            .dsp_api_image = &in_data->multi_crop_and_resize_args.src,
-            .access_flags = XRP_READ,
-        },
-    };
+    std::vector<command_image_t> images;
+    images.reserve(1 + DSP_MULTI_RESIZE_OUTPUTS_COUNT);
 
-    size_t image_count = 1;
+    images.emplace_back(command_image_t{
+        .user_api_image = resize_params->src,
+        .dsp_api_image = &in_data->multi_crop_and_resize_args.src,
+        .access_type = BufferAccessType::Read,
+    });
+
     for (auto dst_image : resize_params->dst) {
         if (dst_image == NULL)
             continue;
-        images[image_count] = (command_image_t){
+        images.emplace_back(command_image_t{
             .user_api_image = dst_image,
-            .dsp_api_image = &in_data->multi_crop_and_resize_args.dst[image_count - 1],
-            .access_flags = XRP_WRITE,
-        };
-        image_count++;
+            .dsp_api_image = &in_data->multi_crop_and_resize_args.dst[images.size() - 1],
+            .access_type = BufferAccessType::Write,
+        });
     }
 
-    in_data->multi_crop_and_resize_args.dst_count = image_count - 1;
+    in_data->multi_crop_and_resize_args.dst_count = images.size() - 1;
+
+    BufferList buffer_list;
+    status = add_images_to_buffer_list(buffer_list, images);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        return status;
+    }
+
+    if (privacy_mask_params) {
+        const size_t bitmask_width = ceil(resize_params->src->width / (double)(PRIVACY_MASK_QUANTIZATION * 8));
+        const size_t bitmask_stride = ROUND_UP(bitmask_width, 8);
+        const size_t bitmask_height = ceil(resize_params->src->height / (double)PRIVACY_MASK_QUANTIZATION);
+        in_data->multi_crop_and_resize_args.privacy_mask.bitmask.line_stride = bitmask_stride;
+        in_data->multi_crop_and_resize_args.privacy_mask.bitmask.plane_size = bitmask_stride * bitmask_height;
+        in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
+            privacy_mask_params->bitmask, bitmask_stride * bitmask_height, BufferAccessType::Read);
+
+        in_data->multi_crop_and_resize_args.privacy_mask.y_color = privacy_mask_params->y_color;
+        in_data->multi_crop_and_resize_args.privacy_mask.u_color = privacy_mask_params->u_color;
+        in_data->multi_crop_and_resize_args.privacy_mask.v_color = privacy_mask_params->v_color;
+
+        in_data->multi_crop_and_resize_args.privacy_mask.rois_count = privacy_mask_params->rois_count;
+        for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].start_x = privacy_mask_params->rois[i].start_x;
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].start_y = privacy_mask_params->rois[i].start_y;
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_x = privacy_mask_params->rois[i].end_x;
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_y = privacy_mask_params->rois[i].end_y;
+        }
+    }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status =
-        send_command(device, images, image_count, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
     }
@@ -292,7 +390,15 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
 
 dsp_status dsp_multi_crop_and_resize(dsp_device device,
                                      const dsp_multi_resize_params_t *resize_params,
-                                     const dsp_crop_api_t *crop_params)
+                                     const dsp_roi_t *crop_params)
 {
-    return dsp_multi_crop_and_resize_perf(device, resize_params, crop_params, NULL);
+    return dsp_multi_crop_and_resize_perf(device, resize_params, crop_params, NULL, NULL);
+}
+
+dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
+                                                  const dsp_multi_resize_params_t *resize_params,
+                                                  const dsp_roi_t *crop_params,
+                                                  const dsp_privacy_mask_t *privacy_mask_params)
+{
+    return dsp_multi_crop_and_resize_perf(device, resize_params, crop_params, privacy_mask_params, NULL);
 }

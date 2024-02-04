@@ -59,7 +59,6 @@ typedef enum {
 } dsp_status;
 
 /** @}
- *
  *  @defgroup group_image_properties Image Properties
  *  @{
  */
@@ -109,14 +108,33 @@ typedef enum {
     DSP_IMAGE_FORMAT_MAX_ENUM = DSP_MAX_ENUM
 } dsp_image_format_t;
 
+/** Memory type */
+typedef enum {
+    /** Represents a memory type that uses user pointers. */
+    DSP_MEMORY_TYPE_USERPTR,
+    /** Represents a memory type that uses dma-buf file descriptors. */
+    DSP_MEMORY_TYPE_DMABUF,
+
+    /* Must be last */
+    DSP_MEMORY_TYPE_COUNT,
+    /** Max enum value to maintain ABI Integrity */
+    DSP_MEMORY_TYPE_MAX_ENUM = DSP_MAX_ENUM
+} dsp_memory_type_t;
+
 /** Image plane metadata */
 typedef struct {
-    /** Userspace pointer to the first pixel in the plane
-     * @note Although it is possible to use any buffer that has been mapped to userspace, optimal performance can be
-     * achieved if the plane data is physically contiguous. To create a contiguous buffer, the ::dsp_create_buffer
-     * function can be used
-     */
-    void *userptr;
+    union {
+        /** When the memory type in the containing struct dsp_image_properties_t is ::DSP_MEMORY_TYPE_USERPTR,
+         * this is a userspace pointer to the first pixel in the plane
+         * @note Although it is possible to use any buffer that has been mapped to userspace, optimal performance can be
+         * achieved if the plane data is physically contiguous. To create a contiguous buffer, the ::dsp_create_buffer
+         * function can be used
+         */
+        void *userptr;
+        /** When the memory type in the containing struct dsp_image_properties_t is ::DSP_MEMORY_TYPE_DMABUF,
+         * this is a file descriptor associated with a DMABUF buffer */
+        int fd;
+    };
     /** Distance in bytes between the leftmost pixels in two adjacent lines */
     size_t bytesperline;
     /** Number of bytes occupied by data (payload) in the plane */
@@ -135,7 +153,24 @@ typedef struct {
     size_t planes_count;
     /** Image format */
     dsp_image_format_t format;
+    /** Image planes memory type. For more information, refer to ::dsp_data_plane_t */
+    dsp_memory_type_t memory;
 } dsp_image_properties_t;
+
+/** Region of Interest (ROI)
+ * @brief This struct is used by image processing APIs to specify a region of interest (ROI) in an image.
+ * @note All fields are in pixel units
+ */
+typedef struct {
+    /** Offset of the left most pixel in the ROI. valid range: [0, width-1] */
+    size_t start_x;
+    /** Offset of the up most pixel in the ROI. valid range: [0, height-1] */
+    size_t start_y;
+    /** Offset of the right most pixel in the ROI. valid range: [1, width] */
+    size_t end_x;
+    /** Offset of the bottom most pixel in the ROI. valid range: [1, height] */
+    size_t end_y;
+} dsp_roi_t;
 
 /** Interploation methods */
 typedef enum {
@@ -240,6 +275,7 @@ dsp_status dsp_buffer_sync_end(void *buffer, dsp_sync_direction_t direction);
  *  @}
  *
  *  @defgroup resize Crop & Resize API
+ *  @note some APIs also support an application of a privacy mask
  *  @{
  */
 
@@ -261,17 +297,9 @@ typedef struct {
 /**
  * Crop parameters
  * @note All fields are in pixel units
+ * @note This typedef is for backwards compatibility only. Use ::dsp_roi_t instead
  */
-typedef struct {
-    /** Offset of the left most pixel in the cropped image. valid range: [0, width-1] */
-    size_t start_x;
-    /** Offset of the up most pixel in the cropped image. valid range: [0, height-1] */
-    size_t start_y;
-    /** Offset of the right most pixel in the cropped image. valid range: [1, width] */
-    size_t end_x;
-    /** Offset of the bottom most pixel in the cropped image. valid range: [1, height] */
-    size_t end_y;
-} dsp_crop_api_t;
+typedef dsp_roi_t dsp_crop_api_t;
 
 /** Multi-Resize parameters */
 typedef struct {
@@ -287,6 +315,25 @@ typedef struct {
      *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported. */
     dsp_interpolation_type_t interpolation;
 } dsp_multi_resize_params_t;
+
+/** Privacy-Mask parameters */
+typedef struct {
+    uint8_t *bitmask;
+
+    /** YUV color */
+    uint8_t y_color;
+    uint8_t u_color;
+    uint8_t v_color;
+
+    /**
+     * Since the bitmask convers the entire 4K input image, it's advisable to specify a ractangular ROI surrounding each
+     * Polygon. This will allow the DSP to ignore coloring the pixels outside the ROI, and thus improve performance. For
+     * simpler (and slower) usage, it is possible to pass 1 ROI which covers the entire image.
+     * @note Supports up to 8 \p ROIs
+     */
+    dsp_roi_t *rois;
+    size_t rois_count;
+} dsp_privacy_mask_t;
 
 /**
  * @brief Perform resize operation
@@ -306,12 +353,12 @@ dsp_status dsp_resize(dsp_device device, const dsp_resize_params_t *resize_param
  *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
- * @param crop_params Pointer to ::dsp_crop_api_t with the required crop parameters
+ * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_crop_and_resize(dsp_device device,
                                const dsp_resize_params_t *resize_params,
-                               const dsp_crop_api_t *crop_params);
+                               const dsp_roi_t *crop_params);
 
 /**
  * @brief Perform multi crop&resize operation
@@ -320,11 +367,27 @@ dsp_status dsp_crop_and_resize(dsp_device device,
  *          The formats of the src image and dst image must be identical.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_multi_resize_params_t with the required resize parameters
- * @param crop_params Pointer to ::dsp_crop_api_t with the required crop parameters
+ * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error */
 dsp_status dsp_multi_crop_and_resize(dsp_device device,
                                      const dsp_multi_resize_params_t *resize_params,
-                                     const dsp_crop_api_t *crop_params);
+                                     const dsp_roi_t *crop_params);
+
+/**
+ * @brief Apply a privacy mask and perform multi crop&resize operation
+ * @details Same as ::dsp_multi_crop_and_resize, but before performing the crop&resize,
+ *          a privacy mask is applied to the source image (the image is unmodified)
+ *          Every output preserves the privacy mask
+ * @param device A ::dsp_device object
+ * @param resize_params Pointer to ::dsp_multi_resize_params_t with the required resize parameters
+ * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
+ * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
+                                                  const dsp_multi_resize_params_t *resize_params,
+                                                  const dsp_roi_t *crop_params,
+                                                  const dsp_privacy_mask_t *privacy_mask_params);
 /**
  *  @}
  *
@@ -365,17 +428,11 @@ dsp_status dsp_blend(dsp_device device,
  *  @{
  */
 
-/** Blur region of interest (ROI) parameters */
-typedef struct {
-    /** Offset of the left most pixel in the ROI. valid range: [0, width-1] */
-    size_t start_x;
-    /** Offset of the up most pixel in the ROI. valid range: [0, height-1] */
-    size_t start_y;
-    /** Offset of the right most pixel in the ROI. valid range: [1, width] */
-    size_t end_x;
-    /** Offset of the bottom most pixel in the ROI. valid range: [1, height] */
-    size_t end_y;
-} dsp_blur_roi_t;
+/**
+ * Blur region of interest (ROI) parameters
+ * @note This typedef is for backwards compatibility only. Use ::dsp_roi_t instead
+ */
+typedef dsp_roi_t dsp_blur_roi_t;
 
 /**
  * @brief Perform box blur operation
@@ -393,7 +450,7 @@ typedef struct {
  */
 dsp_status dsp_blur(dsp_device device,
                     dsp_image_properties_t *image,
-                    const dsp_blur_roi_t rois[],
+                    const dsp_roi_t rois[],
                     size_t rois_count,
                     uint32_t kernel_size);
 

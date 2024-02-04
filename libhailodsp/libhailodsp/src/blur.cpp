@@ -36,7 +36,7 @@
 #define KERNEL_MAX_SIZE (33)
 
 // This function assumes that "image" params is already checked for correctness
-static dsp_status verify_roi_params(const dsp_image_properties_t *image, const dsp_blur_roi_t *roi_params)
+static dsp_status verify_roi_params(const dsp_image_properties_t *image, const dsp_roi_t *roi_params)
 {
     if (!image || !roi_params) {
         LOGGER__ERROR("Error: NULL argument (image={}, roi_params={})\n", fmt::ptr(image), fmt::ptr(roi_params));
@@ -72,7 +72,7 @@ static dsp_status verify_roi_params(const dsp_image_properties_t *image, const d
 
 dsp_status dsp_blur_perf(dsp_device device,
                          dsp_image_properties_t *image,
-                         const dsp_blur_roi_t rois[],
+                         const dsp_roi_t rois[],
                          size_t rois_count,
                          uint32_t kernel_size,
                          perf_info_t *perf_info)
@@ -132,15 +132,10 @@ dsp_status dsp_blur_perf(dsp_device device,
         in_data->blur_args.rois[i].end_y = rois[i].end_y;
     }
 
-    command_image_t command_image = {
-        .user_api_image = image,
-        .dsp_api_image = &in_data->blur_args.image,
-        .access_flags = XRP_READ_WRITE,
-    };
+    std::vector<command_image_t> images = {{image, &in_data->blur_args.image, BufferAccessType::ReadWrite}};
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status =
-        send_command(device, &command_image, 1, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing blur operation. Error code: {}\n", status);
     }
@@ -150,7 +145,7 @@ dsp_status dsp_blur_perf(dsp_device device,
 
 dsp_status dsp_blur(dsp_device device,
                     dsp_image_properties_t *image,
-                    const dsp_blur_roi_t rois[],
+                    const dsp_roi_t rois[],
                     size_t rois_count,
                     uint32_t kernel_size)
 {

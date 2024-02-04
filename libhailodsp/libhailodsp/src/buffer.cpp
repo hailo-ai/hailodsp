@@ -23,15 +23,20 @@
 
 #include "device.hpp"
 #include "hailo/hailodsp.h"
+#include "hailodsp_driver.hpp"
+#include "logger_macros.hpp"
 
 #include <utils.h>
-#include <xrp_api.h>
-#include <xrp_status.h>
 
 typedef struct {
-    struct xrp_buffer *metadata;
+    dsp_device device;
+    size_t allocated_size;
+} buffer_metadata_t;
+
+typedef struct {
+    buffer_metadata_t metadata;
     // Aligning 'data' to 64 bytes is better for DDR performance
-    char dummy[64 - sizeof(struct xrp_buffer *)];
+    char dummy[64 - sizeof(buffer_metadata_t)];
     char data[];
 } __attribute__((packed)) dsp_buffer_t;
 
@@ -42,108 +47,54 @@ static dsp_buffer_t *dsp_buffer_from_ptr(void *buffer)
 
 dsp_status dsp_create_buffer(dsp_device device, size_t size, void **buffer)
 {
-    dsp_status status = DSP_UNINITIALIZED;
-    enum xrp_status xrp_status;
-    struct xrp_buffer *xrp_buffer = NULL;
-    void *data_buffer = NULL;
     dsp_buffer_t *dsp_buffer;
 
     if (!device || !size || !buffer) {
-        status = DSP_INVALID_ARGUMENT;
-        goto l_exit;
-    }
-
-    xrp_buffer = xrp_create_buffer(device->xrp_device, sizeof(*dsp_buffer) + size, NULL, &xrp_status);
-    if (XRP_FAILURE(xrp_status)) {
-        status = DSP_CREATE_BUFFER_FAILED;
-        goto l_exit;
-    }
-
-    data_buffer = xrp_map_buffer(xrp_buffer, 0, sizeof(*dsp_buffer) + size, XRP_READ_WRITE, &xrp_status);
-    if (XRP_FAILURE(xrp_status)) {
-        status = DSP_MAP_BUFFER_FAILED;
-        goto l_exit;
-    }
-
-    dsp_buffer = (dsp_buffer_t *)data_buffer;
-    dsp_buffer->metadata = xrp_buffer;
-    *buffer = dsp_buffer->data;
-
-    data_buffer = NULL;
-    xrp_buffer = NULL;
-
-    status = DSP_SUCCESS;
-
-l_exit:
-    if (data_buffer) {
-        xrp_unmap_buffer(xrp_buffer, data_buffer, &xrp_status);
-
-        // should only fail if data_buffer not within xrp_buffer->ptr range
-        (void)xrp_status;
-    }
-    if (xrp_buffer) {
-        xrp_release_buffer(xrp_buffer);
-    }
-
-    return status;
-}
-
-dsp_status dsp_release_buffer(dsp_device device, void *buffer)
-{
-    dsp_status status = DSP_UNINITIALIZED;
-    enum xrp_status xrp_status;
-
-    if (!device || !buffer) {
-        status = DSP_INVALID_ARGUMENT;
-        return status;
-    }
-
-    dsp_buffer_t *dsp_buffer = dsp_buffer_from_ptr(buffer);
-    struct xrp_buffer *xrp_buffer = dsp_buffer->metadata;
-
-    xrp_unmap_buffer(xrp_buffer, buffer, &xrp_status);
-    if (XRP_FAILURE(xrp_status)) {
-        status = DSP_UNMAP_BUFFER_FAILED;
-        return status;
-    }
-
-    xrp_release_buffer(xrp_buffer);
-
-    status = DSP_SUCCESS;
-
-    return status;
-}
-
-static_assert((int)DSP_BUFFER_SYNC_READ == (int)XRP_READ, "dsp_sync_direction_t must be identical to xrp_access_flags");
-static_assert((int)DSP_BUFFER_SYNC_WRITE == (int)XRP_WRITE,
-              "dsp_sync_direction_t must be identical to xrp_access_flags");
-static_assert((int)DSP_BUFFER_SYNC_RW == (int)XRP_READ_WRITE,
-              "dsp_sync_direction_t must be identical to xrp_access_flags");
-
-static dsp_status dsp_buffer_sync(void *buffer, dsp_sync_direction_t direction, enum xrp_sync_access_time access_time)
-{
-    enum xrp_status xrp_status;
-
-    if (!buffer) {
         return DSP_INVALID_ARGUMENT;
     }
 
-    dsp_buffer_t *dsp_buffer = dsp_buffer_from_ptr(buffer);
-    struct xrp_buffer *xrp_buffer = dsp_buffer->metadata;
-    xrp_sync_device_buffer(xrp_buffer, (enum xrp_access_flags)direction, access_time, &xrp_status);
-    if (XRP_FAILURE(xrp_status)) {
-        return DSP_SYNC_BUFFER_FAILED;
+    size_t allocated_size = sizeof(*dsp_buffer) + size;
+
+    auto status = driver_allocate_buffer(device->fd, allocated_size, (void **)&dsp_buffer);
+    if (status != DSP_SUCCESS) {
+        return status;
     }
+
+    dsp_buffer->metadata.device = device;
+    dsp_buffer->metadata.allocated_size = allocated_size;
+    *buffer = dsp_buffer->data;
 
     return DSP_SUCCESS;
 }
 
+dsp_status dsp_release_buffer(dsp_device device, void *buffer)
+{
+    if (!device || !buffer) {
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    dsp_buffer_t *dsp_buffer = dsp_buffer_from_ptr(buffer);
+    return driver_release_buffer(device->fd, dsp_buffer, dsp_buffer->metadata.allocated_size);
+}
+
 dsp_status dsp_buffer_sync_start(void *buffer, dsp_sync_direction_t direction)
 {
-    return dsp_buffer_sync(buffer, direction, XRP_BUFFER_SYNC_START);
+    if (!buffer) {
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto dsp_buffer = dsp_buffer_from_ptr(buffer);
+    return driver_sync_buffer_start(dsp_buffer->metadata.device->fd, buffer, dsp_buffer->metadata.allocated_size,
+                                    direction);
 }
 
 dsp_status dsp_buffer_sync_end(void *buffer, dsp_sync_direction_t direction)
 {
-    return dsp_buffer_sync(buffer, direction, XRP_BUFFER_SYNC_END);
+    if (!buffer) {
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto dsp_buffer = dsp_buffer_from_ptr(buffer);
+    return driver_sync_buffer_end(dsp_buffer->metadata.device->fd, buffer, dsp_buffer->metadata.allocated_size,
+                                  direction);
 }

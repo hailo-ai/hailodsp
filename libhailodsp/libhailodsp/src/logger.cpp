@@ -24,14 +24,11 @@
 #include "logger_macros.hpp"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
-#ifdef NDEBUG
-#define CONSOLE_LOGGER_PATTERN ("[%n] [%^%l%$] %v") // Console logger will print: [hailodsp] [log level] msg
-#else
 #define CONSOLE_LOGGER_PATTERN \
     ("[%Y-%m-%d %X.%e] [%P] [%t] [%n] [%^%l%$] [%s:%#] [%!] %v") // Console logger will print: [timestamp] [PID] [TID]
                                                                  // [hailodsp] [log level] [source file:line number]
                                                                  // [function name] msg
-#endif
+#define CONSOLE_LEVEL_ENV_NAME ("HAILODSP_CONSOLE_LOG_LEVEL")
 
 class Logger {
    public:
@@ -39,15 +36,40 @@ class Logger {
     {
         m_console_sink->set_pattern(CONSOLE_LOGGER_PATTERN);
 
-        spdlog::sinks_init_list sink_list = {m_console_sink};
-
-        m_logger = std::make_shared<spdlog::logger>("hailodsp", sink_list.begin(), sink_list.end());
-        // set log level to minimum. The actual level is controled at compile time
-        m_logger->set_level(spdlog::level::trace);
-        spdlog::set_default_logger(m_logger);
+        m_logger = std::make_shared<spdlog::logger>("hailodsp", m_console_sink);
+#if NDEBUG
+        auto default_level = spdlog::level::level_enum::warn;
+#else
+        auto default_level = spdlog::level::level_enum::debug;
+#endif
+        m_logger->set_level(get_level(std::getenv(CONSOLE_LEVEL_ENV_NAME), default_level));
 
         LOGGER__TRACE("libhailodsp is loaded");
     }
+
+    spdlog::level::level_enum get_level(const char *log_level_c_str, spdlog::level::level_enum default_level)
+    {
+        std::string log_level = log_level_c_str == nullptr ? "" : std::string(log_level_c_str);
+
+        if (log_level == "trace")
+            return spdlog::level::level_enum::trace;
+        else if (log_level == "debug")
+            return spdlog::level::level_enum::debug;
+        else if (log_level == "info")
+            return spdlog::level::level_enum::info;
+        else if (log_level == "warn")
+            return spdlog::level::level_enum::warn;
+        else if (log_level == "error")
+            return spdlog::level::level_enum::err;
+        else if (log_level == "critical")
+            return spdlog::level::level_enum::critical;
+        else if (log_level == "off")
+            return spdlog::level::level_enum::off;
+        else
+            return default_level;
+    }
+
+    std::shared_ptr<spdlog::logger> get_logger() { return m_logger; }
 
    private:
     std::shared_ptr<spdlog::sinks::sink> m_console_sink;
@@ -56,3 +78,8 @@ class Logger {
 
 // This will cause the logger to initialize on load
 static Logger logger;
+
+std::shared_ptr<spdlog::logger> get_hailodsp_logger()
+{
+    return logger.get_logger();
+}

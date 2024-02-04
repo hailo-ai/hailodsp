@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2023 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2017-2024 Hailo Technologies Ltd. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -21,8 +21,27 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#pragma once
+#include "buffer_list.hpp"
+#include "device.hpp"
+#include "hailo/hailodsp.h"
+#include "hailodsp_driver.hpp"
+#include "logger_macros.hpp"
+#include "user_dsp_interface.h"
+#include "utilization.hpp"
 
-struct _dsp_device {
-    int fd;
-};
+dsp_status dsp_get_utilization(dsp_device device, uint32_t &utilization)
+{
+    if (!device) {
+        LOGGER__ERROR("Error: device is null\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    utilization_response_t response = {};
+    auto status = driver_send_command(device->fd, UTILIZATION_NSID, nullptr, 0, &response, sizeof(response));
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    utilization = response.utilization;
+    return DSP_SUCCESS;
+}

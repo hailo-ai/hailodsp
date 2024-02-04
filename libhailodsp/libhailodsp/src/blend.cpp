@@ -85,13 +85,14 @@ dsp_status dsp_blend_perf(dsp_device device,
     in_data->operation = IMAGING_OP_BLEND;
     in_data->blend_args.overlays_count = overlays_count;
 
-    command_image_t images[MAX_BLEND_OVERLAYS + 1] = {
-        {
-            .user_api_image = image,
-            .dsp_api_image = &in_data->blend_args.background,
-            .access_flags = XRP_READ_WRITE,
-        },
-    };
+    std::vector<command_image_t> images;
+    images.reserve(overlays_count + 1);
+
+    images.emplace_back(command_image_t{
+        .user_api_image = image,
+        .dsp_api_image = &in_data->blend_args.background,
+        .access_type = BufferAccessType::ReadWrite,
+    });
 
     for (size_t i = 0; i < overlays_count; ++i) {
         status = verify_image_properties(&overlays[i].overlay);
@@ -111,19 +112,18 @@ dsp_status dsp_blend_perf(dsp_device device,
             return DSP_INVALID_ARGUMENT;
         }
 
-        images[i + 1] = (command_image_t){
+        images.emplace_back(command_image_t{
             .user_api_image = &overlays[i].overlay,
             .dsp_api_image = &in_data->blend_args.overlays[i].overlay,
-            .access_flags = XRP_READ,
-        };
+            .access_type = BufferAccessType::Read,
+        });
 
         in_data->blend_args.overlays[i].x_offset = overlays[i].x_offset;
         in_data->blend_args.overlays[i].y_offset = overlays[i].y_offset;
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, images, overlays_count + 1, in_data.get(), sizeof(imaging_request_t), perf_info,
-                          perf_info_size);
+    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing blend operation. Error code: {}\n", status);
     }

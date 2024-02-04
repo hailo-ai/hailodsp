@@ -20,32 +20,69 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
-#pragma once
-
+#include "device.hpp"
 #include "hailo/hailodsp.h"
+#include "hailodsp_driver.hpp"
+#include "logger_macros.hpp"
 #include "user_dsp_interface.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdio.h>
 
-#define PRIVACY_MASK_QUANTIZATION (4)
+dsp_status dsp_create_device(dsp_device *device)
+{
+    dsp_status status = DSP_UNINITIALIZED;
 
-dsp_status dsp_crop_and_resize_perf(dsp_device device,
-                                    const dsp_resize_params_t *resize_params,
-                                    const dsp_roi_t *crop_params,
-                                    perf_info_t *perf_info);
+    dsp_device local_device = NULL;
+    int fd = -1;
 
-dsp_status dsp_resize_perf(dsp_device device, const dsp_resize_params_t *resize_params, perf_info_t *perf_info);
+    if (device == NULL) {
+        status = DSP_INVALID_ARGUMENT;
+        goto l_exit;
+    }
 
-dsp_status dsp_multi_crop_and_resize_perf(
-    dsp_device device,
-    const dsp_multi_resize_params_t *resize_params,
-    const dsp_roi_t *crop_params,
-    const dsp_privacy_mask_t *privacy_mask_params, // optional, NULL for no privacy mask
-    perf_info_t *perf_info);
+    local_device = new (std::nothrow) _dsp_device;
+    if (!local_device) {
+        LOGGER__ERROR("Failed to allocate memory for device");
+        status = DSP_OUT_OF_HOST_MEMORY;
+        goto l_exit;
+    }
 
-#ifdef __cplusplus
+    status = driver_open_device(fd);
+    if (status != DSP_SUCCESS) {
+        goto l_exit;
+    }
+
+    local_device->fd = fd;
+    *device = local_device;
+
+    local_device = NULL;
+
+    status = DSP_SUCCESS;
+
+l_exit:
+    if (local_device != NULL) {
+        delete local_device;
+    }
+    return status;
 }
-#endif
+
+dsp_status dsp_release_device(dsp_device device)
+{
+    dsp_status status = DSP_UNINITIALIZED;
+
+    if (device == NULL) {
+        status = DSP_INVALID_ARGUMENT;
+        goto l_exit;
+    }
+
+    status = driver_close_device(device->fd);
+    if (status != DSP_SUCCESS) {
+        goto l_exit;
+    }
+
+    delete device;
+    status = DSP_SUCCESS;
+
+l_exit:
+    return status;
+}

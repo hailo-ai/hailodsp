@@ -124,34 +124,31 @@ dsp_status dsp_dewarp_perf(dsp_device device,
     in_data->dewarp_args.mesh.plane_size = mesh_size;
     in_data->dewarp_args.mesh.line_stride = mesh_line_stride;
 
-    command_image_t command_images[] = {
+    std::vector<command_image_t> images = {
         {
             .user_api_image = src,
             .dsp_api_image = &in_data->dewarp_args.src,
-            .access_flags = XRP_READ,
+            .access_type = BufferAccessType::Read,
         },
         {
             .user_api_image = dst,
             .dsp_api_image = &in_data->dewarp_args.dst,
-            .access_flags = XRP_WRITE,
+            .access_type = BufferAccessType::Write,
         },
     };
 
-    auto fill_buffer_group = [&command_images, &in_data, &mesh, mesh_size](dsp_device device,
-                                                                           struct xrp_buffer_group *buffer_group) {
-        auto status = add_buffer_to_buffer_group(device, mesh->mesh_table, mesh_size, XRP_READ, buffer_group,
-                                                 &in_data->dewarp_args.mesh.xrp_buffer_index);
-        if (status != DSP_SUCCESS) {
-            return status;
-        }
-
-        return add_images_to_buffer_group(device, command_images, ARRAY_LENGTH(command_images), buffer_group);
-    };
+    BufferList buffer_list;
+    in_data->dewarp_args.mesh.xrp_buffer_index =
+        buffer_list.add_buffer(mesh->mesh_table, mesh_size, BufferAccessType::Read);
+    status = add_images_to_buffer_list(buffer_list, images);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        return status;
+    }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
 
-    status =
-        send_command(device, fill_buffer_group, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}\n", status);
     }

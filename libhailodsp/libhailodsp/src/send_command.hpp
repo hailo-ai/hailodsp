@@ -23,47 +23,33 @@
 
 #pragma once
 
+#include "buffer_list.hpp"
 #include "hailo/hailodsp.h"
 #include "user_dsp_interface.h"
+#include "xrp_types.h"
 
 #include <functional>
-#include <xrp_api.h>
+
+#include "xrp_kernel_defs.h"
 
 typedef struct {
     const dsp_image_properties_t *user_api_image;
     image_properties_t *dsp_api_image;
-    enum xrp_access_flags access_flags;
+    BufferAccessType access_type;
 } command_image_t;
 
-using fill_buffer_group_t = std::function<dsp_status(dsp_device, struct xrp_buffer_group *)>;
-
 dsp_status send_command(dsp_device device,
-                        fill_buffer_group_t fill_buffer_group,
+                        BufferList &buffers,
                         const void *in_data,
                         size_t in_data_size,
                         void *out_data,
                         size_t out_data_size);
 
 dsp_status send_command(dsp_device device,
-                        const command_image_t *images,
-                        size_t images_count,
+                        std::vector<command_image_t> images,
                         const void *in_data,
                         size_t in_data_size,
                         void *out_data,
                         size_t out_data_size);
 
-dsp_status add_image_to_buffer_group(dsp_device device,
-                                     const command_image_t *image,
-                                     struct xrp_buffer_group *buffer_group);
-
-dsp_status add_images_to_buffer_group(dsp_device device,
-                                      const command_image_t images[],
-                                      size_t images_count,
-                                      struct xrp_buffer_group *buffer_group);
-
-dsp_status add_buffer_to_buffer_group(dsp_device device,
-                                      void *buffer,
-                                      size_t buffer_size,
-                                      enum xrp_access_flags access_flags,
-                                      struct xrp_buffer_group *buffer_group,
-                                      uint32_t *buffer_index);
+dsp_status add_images_to_buffer_list(BufferList &buffer_list, std::vector<command_image_t> images);

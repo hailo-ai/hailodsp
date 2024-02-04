@@ -32,7 +32,7 @@ extern "C" {
 
 dsp_status dsp_blur_perf(dsp_device device,
                          dsp_image_properties_t *image,
-                         const dsp_blur_roi_t rois[],
+                         const dsp_roi_t rois[],
                          size_t rois_count,
                          uint32_t kernel_size,
                          perf_info_t *perf_info);
