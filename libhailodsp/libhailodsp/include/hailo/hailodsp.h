@@ -318,18 +318,27 @@ typedef struct {
 
 /** Privacy-Mask parameters */
 typedef struct {
+    /**
+     * Bitmask to specify which pixels are part of the privacy mask and therefore need to be colored
+     * (1 = apply privacy mask, 0 = don't apply). The bitmask should cover the entire input image,
+     * such that each bit in the bitmask represents 4x4 pixels in the original image
+     * e.g. a bitmask for a 4K image should be 120x540 bytes in size
+     * @note The stride of the bitmask should be divisible by 8, so padding may be required.
+     * This padding is ignored and only the actual bitmask width is used
+     */
     uint8_t *bitmask;
 
-    /** YUV color */
+    /** YUV color (same color for all polygons) */
     uint8_t y_color;
     uint8_t u_color;
     uint8_t v_color;
 
     /**
-     * Since the bitmask convers the entire 4K input image, it's advisable to specify a ractangular ROI surrounding each
+     * Since the bitmask convers the entire input image, it's advisable to specify a ractangular ROI surrounding each
      * Polygon. This will allow the DSP to ignore coloring the pixels outside the ROI, and thus improve performance. For
-     * simpler (and slower) usage, it is possible to pass 1 ROI which covers the entire image.
-     * @note Supports up to 8 \p ROIs
+     * simpler (and slower) usage, it is possible to pass 1 ROI which covers the entire image
+     * @note The ROI coordinates are for a 4x4 quantized image
+     * @note Supports between 1 and 8 \p rois
      */
     dsp_roi_t *rois;
     size_t rois_count;
@@ -368,7 +377,8 @@ dsp_status dsp_crop_and_resize(dsp_device device,
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_multi_resize_params_t with the required resize parameters
  * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
- * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error */
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
 dsp_status dsp_multi_crop_and_resize(dsp_device device,
                                      const dsp_multi_resize_params_t *resize_params,
                                      const dsp_roi_t *crop_params);
