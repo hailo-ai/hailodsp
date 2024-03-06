@@ -41,13 +41,6 @@ static dsp_status verify_crop_params(const dsp_image_properties_t *image, const 
         return DSP_INVALID_ARGUMENT;
     }
 
-    if ((image->format == DSP_IMAGE_FORMAT_NV12) &&
-        ((crop_params->start_x % 2 != 0) || (crop_params->end_x % 2 != 0) || (crop_params->start_y % 2 != 0) ||
-         (crop_params->end_y % 2 != 0))) {
-        LOGGER__ERROR("Error: Odd crop parameter received. Crop parameters must be even\n");
-        return DSP_INVALID_ARGUMENT;
-    }
-
     if (crop_params->start_x >= crop_params->end_x) {
         LOGGER__ERROR("Error: Crop start_x ({}) must be smaller then end_x ({})\n", crop_params->start_x,
                       crop_params->end_x);
