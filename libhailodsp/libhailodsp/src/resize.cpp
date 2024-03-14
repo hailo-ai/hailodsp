@@ -33,6 +33,9 @@
 #include <memory>
 #include <utils.h>
 
+#define RESOLUTION_WIDTH_HD (1280)
+#define RESOLUTION_HEIGHT_HD (720)
+
 // This function assumes that "image" params is already checked for correctness
 static dsp_status verify_crop_params(const dsp_image_properties_t *image, const dsp_roi_t *crop_params)
 {
@@ -127,6 +130,23 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
             LOGGER__ERROR("Error: ROI properties check failed for \"roi[{}]\"\n", i);
             return DSP_INVALID_ARGUMENT;
         }
+    }
+
+    return DSP_SUCCESS;
+}
+
+static dsp_status verify_helper_plane_params(dsp_data_plane_t *helper_plane)
+{
+    // helper plane is optional
+    if (!helper_plane) {
+        return DSP_SUCCESS;
+    }
+
+    const size_t helper_plane_height = helper_plane->bytesused / helper_plane->bytesperline;
+    if (helper_plane->bytesperline != RESOLUTION_WIDTH_HD || helper_plane_height != RESOLUTION_HEIGHT_HD) {
+        LOGGER__ERROR("Error: helper plane should be HD in size ({} x {})\n", RESOLUTION_WIDTH_HD,
+                      RESOLUTION_HEIGHT_HD);
+        return DSP_INVALID_ARGUMENT;
     }
 
     return DSP_SUCCESS;
@@ -282,6 +302,12 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         return status;
     }
 
+    status = verify_helper_plane_params(resize_params->helper_plane);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: helper plane parameters check failed\n");
+        return status;
+    }
+
     dsp_image_properties_t cropped_src = *resize_params->src;
     cropped_src.width = crop_params->end_x - crop_params->start_x;
     cropped_src.height = crop_params->end_y - crop_params->start_y;
@@ -377,6 +403,19 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
             in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_x = privacy_mask_params->rois[i].end_x;
             in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_y = privacy_mask_params->rois[i].end_y;
         }
+    }
+
+    if (resize_params->helper_plane) {
+        // Assume all image planes are allocated in an idenctical manner
+        in_data->multi_crop_and_resize_args.helper.width = RESOLUTION_WIDTH_HD;
+        in_data->multi_crop_and_resize_args.helper.height = RESOLUTION_HEIGHT_HD;
+        in_data->multi_crop_and_resize_args.helper.planes[0].line_stride = resize_params->helper_plane->bytesperline;
+        in_data->multi_crop_and_resize_args.helper.planes[0].plane_size = resize_params->helper_plane->bytesused;
+        in_data->multi_crop_and_resize_args.helper.planes[0].xrp_buffer_index = buffer_list.add_plane(
+            *resize_params->helper_plane, BufferAccessType::ReadWrite, resize_params->src->memory);
+        in_data->multi_crop_and_resize_args.helper.planes_count = 1;
+    } else {
+        in_data->multi_crop_and_resize_args.helper.planes_count = 0;
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;

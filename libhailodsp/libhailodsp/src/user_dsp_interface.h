@@ -108,6 +108,7 @@ typedef struct {
 typedef struct {
     image_properties_t src;
     image_properties_t dst[INTERFACE_MULTI_RESIZE_OUTPUTS_COUNT];
+    image_properties_t helper;
     uint32_t crop_start_x;
     uint32_t crop_start_y;
     uint32_t crop_end_x;

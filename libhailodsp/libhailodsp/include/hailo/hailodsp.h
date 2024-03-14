@@ -314,6 +314,8 @@ typedef struct {
     /** Interpolation method to use.
      *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported. */
     dsp_interpolation_type_t interpolation;
+    /** A helper buffer used speed performance for some resolutions. Should be HD in size*/
+    dsp_data_plane_t *helper_plane;
 } dsp_multi_resize_params_t;
 
 /** Privacy-Mask parameters */
