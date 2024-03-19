@@ -45,3 +45,23 @@ dsp_status dsp_get_utilization(dsp_device device, uint32_t &utilization)
     utilization = response.utilization;
     return DSP_SUCCESS;
 }
+
+dsp_status dsp_reset_kernel_statistics(dsp_device device)
+{
+    if (!device) {
+        LOGGER__ERROR("Error: device is null\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return driver_reset_kernel_statistics(device->fd);
+}
+
+dsp_status dsp_get_kernel_statistics(dsp_device device, kernel_statistics &stats)
+{
+    if (!device) {
+        LOGGER__ERROR("Error: device is null\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return driver_get_kernel_statistics(device->fd, stats);
+}

@@ -156,3 +156,34 @@ dsp_status driver_send_command(int fd,
     BufferList buffer_list;
     return driver_send_command(fd, nsid, buffer_list, in_data, in_data_size, out_data, out_data_size);
 }
+
+dsp_status driver_reset_kernel_statistics(int fd)
+{
+    struct xrp_ioctl_stats ioctl_stats = {.reset = 1};
+
+    int ret = ioctl(fd, XRP_IOCTL_STATS, &ioctl_stats);
+    if (ret < 0) {
+        LOGGER__ERROR("Error: Failed to gather kernel statistics, err = {}\n", ret);
+        return DSP_IOCTL_FAILED;
+    }
+
+    return DSP_SUCCESS;
+}
+
+dsp_status driver_get_kernel_statistics(int fd, kernel_statistics &stats)
+{
+    struct xrp_ioctl_stats ioctl_stats = {.reset = 0};
+
+    int ret = ioctl(fd, XRP_IOCTL_STATS, &ioctl_stats);
+    if (ret < 0) {
+        LOGGER__ERROR("Error: Failed to gather kernel statistics, err = {}\n", ret);
+        return DSP_IOCTL_FAILED;
+    }
+
+    stats.total_dsp_time = std::chrono::microseconds(ioctl_stats.total_dsp_time_us);
+    stats.max_dsp_command_time = std::chrono::microseconds(ioctl_stats.max_dsp_command_time_us);
+    stats.total_dsp_commands = ioctl_stats.total_dsp_commands;
+    stats.current_threads_using_dsp = ioctl_stats.current_threads_using_dsp;
+    stats.max_threads_using_dsp = ioctl_stats.max_threads_using_dsp;
+    return DSP_SUCCESS;
+}

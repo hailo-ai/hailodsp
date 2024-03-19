@@ -25,6 +25,7 @@
 
 #include "buffer_list.hpp"
 
+#include <chrono>
 #include <hailo/hailodsp.h>
 #include <optional>
 #include <string>
@@ -51,3 +52,15 @@ dsp_status driver_send_command(int fd,
                                size_t in_data_size = 0,
                                void *out_data = nullptr,
                                size_t out_data_size = 0);
+
+struct kernel_statistics {
+    std::chrono::microseconds total_dsp_time;
+    std::chrono::microseconds max_dsp_command_time;
+    uint32_t total_dsp_commands;
+    uint8_t current_threads_using_dsp;
+    uint8_t max_threads_using_dsp;
+};
+
+dsp_status driver_reset_kernel_statistics(int fd);
+
+dsp_status driver_get_kernel_statistics(int fd, kernel_statistics &stats);

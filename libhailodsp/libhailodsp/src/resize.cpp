@@ -135,15 +135,23 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
     return DSP_SUCCESS;
 }
 
-static dsp_status verify_helper_plane_params(dsp_data_plane_t *helper_plane)
+static dsp_status verify_helper_plane_params(dsp_image_properties_t *helper_plane)
 {
     // helper plane is optional
     if (!helper_plane) {
         return DSP_SUCCESS;
     }
 
-    const size_t helper_plane_height = helper_plane->bytesused / helper_plane->bytesperline;
-    if (helper_plane->bytesperline != RESOLUTION_WIDTH_HD || helper_plane_height != RESOLUTION_HEIGHT_HD) {
+    if (helper_plane->planes_count != 1) {
+        LOGGER__ERROR("Error: helper plane should have exactly 1 plane\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    bool is_hd_plane = helper_plane->width == RESOLUTION_WIDTH_HD && helper_plane->height == RESOLUTION_HEIGHT_HD;
+    bool is_hd_rotated_plane =
+        helper_plane->width == RESOLUTION_HEIGHT_HD && helper_plane->height == RESOLUTION_WIDTH_HD;
+
+    if (!is_hd_plane && !is_hd_rotated_plane) {
         LOGGER__ERROR("Error: helper plane should be HD in size ({} x {})\n", RESOLUTION_WIDTH_HD,
                       RESOLUTION_HEIGHT_HD);
         return DSP_INVALID_ARGUMENT;
@@ -376,6 +384,18 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
 
     in_data->multi_crop_and_resize_args.dst_count = images.size() - 1;
 
+    if (resize_params->helper_plane) {
+        in_data->multi_crop_and_resize_args.helper.width = resize_params->helper_plane->width;
+        in_data->multi_crop_and_resize_args.helper.height = resize_params->helper_plane->height;
+        images.emplace_back(command_image_t{
+            .user_api_image = resize_params->helper_plane,
+            .dsp_api_image = &in_data->multi_crop_and_resize_args.helper,
+            .access_type = BufferAccessType::ReadWrite,
+        });
+    } else {
+        in_data->multi_crop_and_resize_args.helper.planes_count = 0;
+    }
+
     BufferList buffer_list;
     status = add_images_to_buffer_list(buffer_list, images);
     if (status != DSP_SUCCESS) {
@@ -403,19 +423,6 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
             in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_x = privacy_mask_params->rois[i].end_x;
             in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_y = privacy_mask_params->rois[i].end_y;
         }
-    }
-
-    if (resize_params->helper_plane) {
-        // Assume all image planes are allocated in an idenctical manner
-        in_data->multi_crop_and_resize_args.helper.width = RESOLUTION_WIDTH_HD;
-        in_data->multi_crop_and_resize_args.helper.height = RESOLUTION_HEIGHT_HD;
-        in_data->multi_crop_and_resize_args.helper.planes[0].line_stride = resize_params->helper_plane->bytesperline;
-        in_data->multi_crop_and_resize_args.helper.planes[0].plane_size = resize_params->helper_plane->bytesused;
-        in_data->multi_crop_and_resize_args.helper.planes[0].xrp_buffer_index = buffer_list.add_plane(
-            *resize_params->helper_plane, BufferAccessType::ReadWrite, resize_params->src->memory);
-        in_data->multi_crop_and_resize_args.helper.planes_count = 1;
-    } else {
-        in_data->multi_crop_and_resize_args.helper.planes_count = 0;
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;

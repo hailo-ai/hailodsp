@@ -53,6 +53,7 @@ typedef enum {
     DSP_MAP_BUFFER_FAILED,          /**< Failed mapping buffer */
     DSP_UNMAP_BUFFER_FAILED,        /**< Failed unmapping buffer */
     DSP_SYNC_BUFFER_FAILED,         /**< Failed synching buffer */
+    DSP_IOCTL_FAILED,               /**< General error for driver communication failure */
 
     DSP_STATUS_COUNT,                  /* Must be last */
     DSP_STATUS_MAX_ENUM = DSP_MAX_ENUM /**< Max enum value to maintain ABI Integrity */
@@ -315,7 +316,7 @@ typedef struct {
      *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported. */
     dsp_interpolation_type_t interpolation;
     /** A helper buffer used speed performance for some resolutions. Should be HD in size*/
-    dsp_data_plane_t *helper_plane;
+    dsp_image_properties_t *helper_plane;
 } dsp_multi_resize_params_t;
 
 /** Privacy-Mask parameters */
