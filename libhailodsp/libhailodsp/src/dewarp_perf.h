@@ -36,6 +36,8 @@ dsp_status dsp_dewarp_perf(dsp_device device,
                            dsp_interpolation_type_t interpolation,
                            perf_info_t *perf_info);
 
+dsp_status dsp_rot_dis_dewarp_perf(dsp_device device, dsp_dewarp_angular_dis_params_t *params, perf_info_t *perf_info);
+
 #ifdef __cplusplus
 }
 #endif

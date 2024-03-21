@@ -68,7 +68,7 @@ class BufferList {
         return buffers.size() - 1;
     }
 
-    int add_buffer(void *buffer, size_t size, BufferAccessType access_type)
+    int add_buffer(const void *buffer, size_t size, BufferAccessType access_type)
     {
         buffers.emplace_back((struct xrp_ioctl_buffer){
             .flags = static_cast<__u32>(access_type),

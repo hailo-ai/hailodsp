@@ -29,6 +29,7 @@ extern "C" {
 #endif
 
 #include <limits.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -509,15 +510,98 @@ typedef struct {
     void *mesh_table;
 } dsp_dewarp_mesh_t;
 
+/** VSM config parameters */
+typedef struct {
+    /** Horizontal offset to the start of the VSM window */
+    size_t hoffset;
+    /** Vertical offset to the start of the VSM window */
+    size_t voffset;
+    /** Width of the VSM window */
+    size_t width;
+    /** Height of the VSM window */
+    size_t height;
+    /** Maximum displacement allowed in the VSM window (in pixels, in both horizontal and vertical directions)
+     *  Calculated as: (16 * segments_count) / 2 */
+    size_t max_displacement;
+} dsp_vsm_config_t;
+
+/** VSM parameters */
+typedef struct {
+    /** VSM configuration */
+    dsp_vsm_config_t config;
+    /** Buffer of size (config.height * sizeof(uint16_t)) with the sum of each row in the VSM window for the previous
+     * frame */
+    const uint16_t *prev_rows_sum;
+    /** Buffer of size (config.width * sizeof(uint16_t)) with the sum of each column in the VSM window for the previous
+     * frame */
+    const uint16_t *prev_columns_sum;
+    /** Buffer of size (config.height * sizeof(uint16_t)) to store the sum of each row in the VSM window for the current
+     * frame. Can be the same buffer as prev_rows_sum */
+    uint16_t *cur_rows_sum;
+    /** Buffer of size (config.width * sizeof(uint16_t)) to store the sum of each column in the VSM window for the
+     * current frame. Can be the same buffer as prev_columns_sum */
+    uint16_t *cur_columns_sum;
+} dsp_vsm_t;
+
+/** ISP VSM parameters */
+typedef struct {
+    /** Horizontal axis center point of the VSP window used for ISP VSM (calculated as: hoffset + width / 2) */
+    size_t center_x;
+    /** Vertical axis center point of the VSP window used for ISP VSM (calculated as: voffset + height / 2) */
+    size_t center_y;
+    /** VSM dx reading from ISP */
+    int dx;
+    /** VSM dy reading from ISP */
+    int dy;
+} dsp_isp_vsm_t;
+
+/** Angular tehta filter parameters */
+typedef struct {
+    /** Maximum allowed theta angle */
+    float maximum_theta;
+    /** Filter alpha */
+    float alpha;
+    /** The cur_angles_sum from the previous frame */
+    float prev_angles_sum;
+    /** The cur_traj from the previous frame */
+    float prev_traj;
+    /** Output of angles sum for current frame */
+    float *cur_angles_sum;
+    /** Output of trajectory for current frame */
+    float *cur_traj;
+    /** Output of stabilized theta */
+    float *stabilized_theta;
+} dsp_filter_angle_t;
+
+/** Dewarp angular DIS parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** Image metadata for destination image */
+    dsp_image_properties_t *dst;
+    /** Mesh information */
+    const dsp_dewarp_mesh_t *mesh;
+    /** Interpolation method to use.
+     *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported */
+    dsp_interpolation_type_t interpolation;
+    /** Determine if angular correction of the frame should be performed */
+    bool do_mesh_correction;
+    /** ISP VSM parameters */
+    dsp_isp_vsm_t isp_vsm;
+    /** VSM parameters */
+    dsp_vsm_t vsm;
+    /** Angular theta filter parameters */
+    dsp_filter_angle_t filter_angle;
+} dsp_dewarp_angular_dis_params_t;
+
 /**
  * @brief Perform dewarp operation
  * @details Perform dewarp operation on an image.
  *          Supported format of the operation is ::DSP_IMAGE_FORMAT_NV12.
- *          The formats of the src image and dst image must be identical.
  *          Only 4k image resolution for src and dst is supported
  * @param device A ::dsp_device object
  * @param src Image metadata for source image. Image data will not change
- * @param dst Image metadata for destination image. Image data will not change
+ * @param dst Image metadata for destination image
  * @param mesh Mesh information
  * @param interpolation Interpolation method to use.
  *                      Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported
@@ -527,6 +611,16 @@ dsp_status dsp_dewarp(dsp_device device,
                       const dsp_image_properties_t *dst,
                       const dsp_dewarp_mesh_t *mesh,
                       dsp_interpolation_type_t interpolation);
+
+/**
+ * @brief Perform dewarp angular DIS operation
+ * @details Perform dewarp angular DIS operation on an image.
+ *          Supported format of the operation is ::DSP_IMAGE_FORMAT_NV12.
+ *          Only 4k image resolution for src and dst is supported
+ * @param device A ::dsp_device object
+ * @param params Dewarp angular DIS parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error */
+dsp_status dsp_rot_dis_dewarp(dsp_device device, dsp_dewarp_angular_dis_params_t *params);
 
 /**
  *  @}

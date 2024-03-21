@@ -56,6 +56,7 @@ typedef enum {
     IMAGING_OP_DEWARP,
     IMAGING_OP_MULTI_CROP_AND_RESIZE,
     IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK,
+    IMAGING_OP_ROT_DIS_DEWARP,
 } imaging_operation_t;
 
 enum dsp_interface_image_format {
@@ -152,6 +153,28 @@ typedef struct {
 } dewarp_in_data_t;
 
 typedef struct {
+    dewarp_in_data_t dewarp_args;
+    uint32_t dsp_vsm_hoffset;
+    uint32_t dsp_vsm_voffset;
+    uint32_t dsp_vsm_width;
+    uint32_t dsp_vsm_height;
+    uint32_t dsp_vsm_max_displacement;
+    data_plane_t prev_rows_sum;
+    data_plane_t prev_columns_sum;
+    data_plane_t cur_rows_sum;
+    data_plane_t cur_columns_sum;
+    uint32_t isp_center_x;
+    uint32_t isp_center_y;
+    int32_t isp_dx;
+    int32_t isp_dy;
+    float maximum_theta;
+    float alpha;
+    float prev_angles_sum;
+    float prev_traj;
+    uint8_t do_mesh_correction;
+} rot_dis_dewarp_in_data_t;
+
+typedef struct {
     int32_t operation;
     union {
         crop_resize_in_data_t crop_and_resize_args;
@@ -160,6 +183,7 @@ typedef struct {
         convert_format_in_data_t convert_format_args;
         dewarp_in_data_t dewarp_args;
         multi_crop_resize_in_data_t multi_crop_and_resize_args;
+        rot_dis_dewarp_in_data_t rot_dis_dewarp_args;
     };
 } imaging_request_t;
 
@@ -193,11 +217,25 @@ typedef struct {
 } dewarp_perf_info_t;
 
 typedef struct {
+    uint32_t vsm_calculation_window;
+    uint32_t vsm_calculation_rows;
+    uint32_t vsm_calculation_cols;
+    uint32_t mesh_correction;
+    uint32_t dewarp;
+} rot_dis_dewarp_perf_info_t;
+
+typedef struct {
     uint32_t xrp_handler;
-    union {
-        fik_perf_into_t fik;
-        dewarp_perf_info_t dewarp;
-    };
+    fik_perf_into_t fik;
+    dewarp_perf_info_t dewarp;
+    rot_dis_dewarp_perf_info_t rot_dis_dewarp;
 } perf_info_t;
+
+typedef struct {
+    perf_info_t perf_info;
+    float cur_angles_sum;
+    float cur_traj;
+    float stabilized_theta;
+} rot_dis_dewarp_response_t;
 
 #endif //_USER_DSP_INTERFACE_H
