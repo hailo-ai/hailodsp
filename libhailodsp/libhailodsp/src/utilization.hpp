@@ -24,5 +24,10 @@
 #pragma once
 
 #include "hailo/hailodsp.h"
+#include "hailodsp_driver.hpp"
 
 dsp_status dsp_get_utilization(dsp_device device, uint32_t &utilization);
+
+dsp_status dsp_reset_kernel_statistics(dsp_device device);
+
+dsp_status dsp_get_kernel_statistics(dsp_device device, kernel_statistics &stats);

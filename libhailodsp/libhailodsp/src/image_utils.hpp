@@ -28,3 +28,4 @@
 
 dsp_status verify_image_properties(const dsp_image_properties_t *image);
 dsp_status convert_image(const dsp_image_properties_t *img_src, image_properties_t *img_dst);
+dsp_status verify_crop_params(const dsp_image_properties_t *image, const dsp_roi_t *crop_params);

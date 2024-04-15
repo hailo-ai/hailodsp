@@ -21,12 +21,12 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "aligned_uptr.hpp"
 #include "blur_perf.h"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
 #include "send_command.hpp"
+#include "thread_local_buffer.hpp"
 #include "user_dsp_interface.h"
 
 #include <cstdint>
@@ -114,7 +114,12 @@ dsp_status dsp_blur_perf(dsp_device device,
             return DSP_INVALID_ARGUMENT;
     }
 
-    auto in_data = make_aligned_uptr<imaging_request_t>();
+    auto in_data = ThreadLocalBuffer<imaging_request_t>::get();
+    if (!in_data) {
+        LOGGER__ERROR("Failed to allocate in_data");
+        return DSP_CREATE_BUFFER_FAILED;
+    }
+
     in_data->operation = IMAGING_OP_BLUR;
     in_data->blur_args.rois_count = rois_count;
     in_data->blur_args.kernel_size = kernel_size;

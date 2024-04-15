@@ -24,6 +24,7 @@ add_library(
   hailodsp SHARED
   src/device.cpp
   src/resize.cpp
+  src/affine_transform.cpp
   src/send_command.cpp
   src/image_utils.cpp
   src/buffer.cpp
@@ -35,7 +36,7 @@ add_library(
   src/hailodsp_driver.cpp
   src/utilization.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.2.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.3.0)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

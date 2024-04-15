@@ -29,6 +29,7 @@ extern "C" {
 #endif
 
 #include <limits.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -53,6 +54,7 @@ typedef enum {
     DSP_MAP_BUFFER_FAILED,          /**< Failed mapping buffer */
     DSP_UNMAP_BUFFER_FAILED,        /**< Failed unmapping buffer */
     DSP_SYNC_BUFFER_FAILED,         /**< Failed synching buffer */
+    DSP_IOCTL_FAILED,               /**< General error for driver communication failure */
 
     DSP_STATUS_COUNT,                  /* Must be last */
     DSP_STATUS_MAX_ENUM = DSP_MAX_ENUM /**< Max enum value to maintain ABI Integrity */
@@ -185,6 +187,38 @@ typedef enum {
     INTERPOLATION_TYPE_MAX_ENUM = DSP_MAX_ENUM
 } dsp_interpolation_type_t;
 
+/** Letterbox aligment types */
+typedef enum {
+    DSP_NO_LETTERBOX = 0,  /**< No letterbox resizing is performed */
+    DSP_LETTERBOX_MIDDLE,  /**< Align the image to the middle */
+    DSP_LETTERBOX_UP_LEFT, /**< Align the image up or left */
+} dsp_letterbox_alignment_t;
+
+/** Color parameters */
+typedef union {
+    struct {
+        uint8_t gray;
+    };
+    struct {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+    };
+    struct {
+        uint8_t y;
+        uint8_t u;
+        uint8_t v;
+    };
+} dsp_color_t;
+
+/** Letterbox properties */
+typedef struct {
+    /** Image alignment */
+    dsp_letterbox_alignment_t alignment;
+    /** The color used for letterboxes */
+    dsp_color_t color;
+} dsp_letterbox_properties_t;
+
 /**
  *  @}
  *  @defgroup group_device_management Device Management API
@@ -279,7 +313,7 @@ dsp_status dsp_buffer_sync_end(void *buffer, dsp_sync_direction_t direction);
  *  @{
  */
 
-/** Maximum number of outputs supported in ::dsp_multi_crop_and_resize */
+/** Maximum number of outputs supported for each crop in ::dsp_multi_crop_and_resize */
 #define DSP_MULTI_RESIZE_OUTPUTS_COUNT (7)
 
 /** Resize parameters */
@@ -301,20 +335,35 @@ typedef struct {
  */
 typedef dsp_roi_t dsp_crop_api_t;
 
-/** Multi-Resize parameters */
 typedef struct {
-    /** Image metadata for source image. Image data will not change */
-    const dsp_image_properties_t *src;
+    /** Pointer to ::dsp_roi_t with the required crop parameters */
+    const dsp_roi_t *crop;
     /** Image metadata for destination images.
      *  Specify the required size in the image metadata.
      *  The operation will write the result to this image data pointer.
      *  Assign NULL on the array entries to reduce the number of outputs.
      */
     const dsp_image_properties_t *dst[DSP_MULTI_RESIZE_OUTPUTS_COUNT];
+} dsp_crop_resize_params_t;
+
+/** Multi-Resize parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** Metadata of the crops to perform on the source image, and the resizes to perform on each crop.
+     *  An Array of ::dsp_crop_resize_params_t structs
+     */
+    dsp_crop_resize_params_t *crop_resize_params;
+    /** \p crop_resize_params array size
+     *  @note Max is 260
+     */
+    size_t crop_resize_params_count;
     /** Interpolation method to use.
      *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported. */
     dsp_interpolation_type_t interpolation;
-} dsp_multi_resize_params_t;
+    /** A helper buffer used speed performance for some resolutions. Should be HD in size*/
+    dsp_image_properties_t *helper_plane;
+} dsp_multi_crop_resize_params_t;
 
 /** Privacy-Mask parameters */
 typedef struct {
@@ -370,34 +419,47 @@ dsp_status dsp_crop_and_resize(dsp_device device,
                                const dsp_roi_t *crop_params);
 
 /**
- * @brief Perform multi crop&resize operation
- * @details Perform crop operation on an image and then resize the cropped image to the specified sizes.
+ * @brief Perform letterbox crop&resize operation
+ * @details Perform crop operation on an image and then resize the cropped image to the specified size.
+ *          The resized image keeps the aspect ratio of the src image.
+ *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
+ *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical
+ * @param device A ::dsp_device object
+ * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
+ * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
+ * @param letterbox_params Pointer to ::dsp_letterbox_properties_t with the required letterbox parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_crop_and_resize_letterbox(dsp_device device,
+                                         const dsp_resize_params_t *resize_params,
+                                         const dsp_roi_t *crop_params,
+                                         const dsp_letterbox_properties_t *letterbox_params);
+
+/**
+ * @brief Perform multi crop and multi resize operation
+ * @details Perform several crop operations on an image and then resize each cropped image to the specified sizes.
  *          Supported format of the operation is ::DSP_IMAGE_FORMAT_NV12.
  *          The formats of the src image and dst image must be identical.
  * @param device A ::dsp_device object
- * @param resize_params Pointer to ::dsp_multi_resize_params_t with the required resize parameters
- * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
+ * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
-dsp_status dsp_multi_crop_and_resize(dsp_device device,
-                                     const dsp_multi_resize_params_t *resize_params,
-                                     const dsp_roi_t *crop_params);
+dsp_status dsp_multi_crop_and_resize(dsp_device device, const dsp_multi_crop_resize_params_t *mutli_crop_resize_params);
 
 /**
  * @brief Apply a privacy mask and perform multi crop&resize operation
- * @details Same as ::dsp_multi_crop_and_resize, but before performing the crop&resize,
+ * @details Same as ::dsp_multi_crop_and_resize, but before performing the crops and resizes,
  *          a privacy mask is applied to the source image (the image is unmodified)
  *          Every output preserves the privacy mask
  * @param device A ::dsp_device object
- * @param resize_params Pointer to ::dsp_multi_resize_params_t with the required resize parameters
- * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
+ * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
-                                                  const dsp_multi_resize_params_t *resize_params,
-                                                  const dsp_roi_t *crop_params,
+                                                  const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
                                                   const dsp_privacy_mask_t *privacy_mask_params);
+
 /**
  *  @}
  *
@@ -506,15 +568,98 @@ typedef struct {
     void *mesh_table;
 } dsp_dewarp_mesh_t;
 
+/** VSM config parameters */
+typedef struct {
+    /** Horizontal offset to the start of the VSM window */
+    size_t hoffset;
+    /** Vertical offset to the start of the VSM window */
+    size_t voffset;
+    /** Width of the VSM window */
+    size_t width;
+    /** Height of the VSM window */
+    size_t height;
+    /** Maximum displacement allowed in the VSM window (in pixels, in both horizontal and vertical directions)
+     *  Calculated as: (16 * segments_count) / 2 */
+    size_t max_displacement;
+} dsp_vsm_config_t;
+
+/** VSM parameters */
+typedef struct {
+    /** VSM configuration */
+    dsp_vsm_config_t config;
+    /** Buffer of size (config.height * sizeof(uint16_t)) with the sum of each row in the VSM window for the previous
+     * frame */
+    const uint16_t *prev_rows_sum;
+    /** Buffer of size (config.width * sizeof(uint16_t)) with the sum of each column in the VSM window for the previous
+     * frame */
+    const uint16_t *prev_columns_sum;
+    /** Buffer of size (config.height * sizeof(uint16_t)) to store the sum of each row in the VSM window for the current
+     * frame. Can be the same buffer as prev_rows_sum */
+    uint16_t *cur_rows_sum;
+    /** Buffer of size (config.width * sizeof(uint16_t)) to store the sum of each column in the VSM window for the
+     * current frame. Can be the same buffer as prev_columns_sum */
+    uint16_t *cur_columns_sum;
+} dsp_vsm_t;
+
+/** ISP VSM parameters */
+typedef struct {
+    /** Horizontal axis center point of the VSP window used for ISP VSM (calculated as: hoffset + width / 2) */
+    size_t center_x;
+    /** Vertical axis center point of the VSP window used for ISP VSM (calculated as: voffset + height / 2) */
+    size_t center_y;
+    /** VSM dx reading from ISP */
+    int dx;
+    /** VSM dy reading from ISP */
+    int dy;
+} dsp_isp_vsm_t;
+
+/** Angular tehta filter parameters */
+typedef struct {
+    /** Maximum allowed theta angle */
+    float maximum_theta;
+    /** Filter alpha */
+    float alpha;
+    /** The cur_angles_sum from the previous frame */
+    float prev_angles_sum;
+    /** The cur_traj from the previous frame */
+    float prev_traj;
+    /** Output of angles sum for current frame */
+    float *cur_angles_sum;
+    /** Output of trajectory for current frame */
+    float *cur_traj;
+    /** Output of stabilized theta */
+    float *stabilized_theta;
+} dsp_filter_angle_t;
+
+/** Dewarp angular DIS parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** Image metadata for destination image */
+    dsp_image_properties_t *dst;
+    /** Mesh information */
+    const dsp_dewarp_mesh_t *mesh;
+    /** Interpolation method to use.
+     *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported */
+    dsp_interpolation_type_t interpolation;
+    /** Determine if angular correction of the frame should be performed */
+    bool do_mesh_correction;
+    /** ISP VSM parameters */
+    dsp_isp_vsm_t isp_vsm;
+    /** VSM parameters */
+    dsp_vsm_t vsm;
+    /** Angular theta filter parameters */
+    dsp_filter_angle_t filter_angle;
+} dsp_dewarp_angular_dis_params_t;
+
 /**
  * @brief Perform dewarp operation
  * @details Perform dewarp operation on an image.
  *          Supported format of the operation is ::DSP_IMAGE_FORMAT_NV12.
- *          The formats of the src image and dst image must be identical.
  *          Only 4k image resolution for src and dst is supported
  * @param device A ::dsp_device object
  * @param src Image metadata for source image. Image data will not change
- * @param dst Image metadata for destination image. Image data will not change
+ * @param dst Image metadata for destination image
  * @param mesh Mesh information
  * @param interpolation Interpolation method to use.
  *                      Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported
@@ -525,6 +670,121 @@ dsp_status dsp_dewarp(dsp_device device,
                       const dsp_dewarp_mesh_t *mesh,
                       dsp_interpolation_type_t interpolation);
 
+/**
+ * @brief Perform dewarp angular DIS operation
+ * @details Perform dewarp angular DIS operation on an image.
+ *          Supported format of the operation is ::DSP_IMAGE_FORMAT_NV12.
+ *          Only 4k image resolution for src and dst is supported
+ * @param device A ::dsp_device object
+ * @param params Dewarp angular DIS parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error */
+dsp_status dsp_rot_dis_dewarp(dsp_device device, dsp_dewarp_angular_dis_params_t *params);
+
+/**
+ *  @}
+ *
+ *  @defgroup affine Affine transformation API
+ *  @{
+ */
+
+/** Maximum number of crops supported in ::dsp_multi_warp_affine */
+#define MAX_AFFINE_TRANSFORMATION_CROPS (80)
+
+/** Affine transformation matrix parameters.\n
+ *  Matrix structure:\n
+ * a11 a12 a13\n
+ * a21 a22 a23\n
+ */
+typedef struct {
+    float a11;
+    float a12;
+    float a13;
+    float a21;
+    float a22;
+    float a23;
+} dsp_affine_transform_matrix;
+
+/** Affine transformation parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** Image metadata for destination image.
+     *  Specify the required size in this image metadata.
+     *  The operation will write the result to this image data pointer  */
+    const dsp_image_properties_t *dst;
+    /** Interpolation method to use. Only Bilinear is supported */
+    dsp_interpolation_type_t interpolation;
+    /** Affine transformation matrix */
+    dsp_affine_transform_matrix *affine_matrix;
+} dsp_warp_affine_params_t;
+
+/** The cropped parts of the src image on which the warp affine
+ *  will be performed on */
+typedef struct {
+    /** The wanted crop parameters on the src image */
+    dsp_roi_t *params;
+    /** Image metadata for the destination image.
+     *  Specify the required size in this image metadata.
+     *  The operation will write the result to the image data pointers */
+    const dsp_image_properties_t *dst;
+    /** Affine transformation matrix for this cropped part */
+    dsp_affine_transform_matrix *affine_matrix;
+} dsp_multi_warp_affine_cropped_part_t;
+
+/** Multiple affine transformation parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** The destination images - cropped parts of the src image that
+     *  will undergo an affine transformation */
+    dsp_multi_warp_affine_cropped_part_t *crops[MAX_AFFINE_TRANSFORMATION_CROPS];
+    /** Interpolation method to use. Only Bilinear is supported */
+    dsp_interpolation_type_t interpolation;
+    /** The number of images to perform the affine transformation on */
+    uint32_t crops_count;
+} dsp_multi_warp_affine_params_t;
+
+/** Single affine rotation transformation parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** Image metadata for destination image.
+     *  Specify the required size in this image metadata.
+     *  The operation will write the result to this image data pointer  */
+    const dsp_image_properties_t *dst;
+    /** Interpolation method to use. Only Bilinear is supported */
+    dsp_interpolation_type_t interpolation;
+    /** The angle of the rotation (clockwise, in degrees) */
+    float theta;
+} dsp_affine_rotation_params_t;
+
+/**
+ * @brief Perform a generic affine transformation
+ * @details This performs a generic affine transformation on an image
+ * @param device A ::dsp_device object
+ * @param warp_affine_params Pointer to ::dsp_warp_affine_params_t with the required transformation parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_warp_affine(dsp_device device, const dsp_warp_affine_params_t *warp_affine_params);
+
+/**
+ * @brief Perform multiple generic affine transformations
+ * @details This performs affine transformations on different crops of the image
+ * @param device A ::dsp_device object
+ * @param multi_warp_affine_params Pointer to ::dsp_multi_warp_affine_params_t with the required transformation
+ *                                 parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_multi_warp_affine(dsp_device device, const dsp_multi_warp_affine_params_t *multi_warp_affine_params);
+
+/**
+ * @brief Perform an affine rotation transformation
+ * @details This performs an affine rotation transformation on an image
+ * @param device A ::dsp_device object
+ * @param rotate_params Pointer to ::dsp_affine_rotation_params_t with the required rotate parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_rotate(dsp_device device, const dsp_affine_rotation_params_t *rotate_params);
 /**
  *  @}
  */

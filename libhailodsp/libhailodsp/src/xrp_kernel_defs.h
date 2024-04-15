@@ -43,6 +43,7 @@
 #define XRP_IOCTL_QUEUE		_IO(XRP_IOCTL_MAGIC, 3)
 #define XRP_IOCTL_QUEUE_NS	_IO(XRP_IOCTL_MAGIC, 4)
 #define XRP_IOCTL_DMA_SYNC  _IO(XRP_IOCTL_MAGIC, 5)
+#define XRP_IOCTL_STATS     _IO(XRP_IOCTL_MAGIC, 6)
 
 struct xrp_ioctl_alloc {
     __u32 size;
@@ -102,6 +103,15 @@ struct xrp_ioctl_sync_buffer {
     __u32 access_time;
     __u32 size;
     __u64 addr;
+};
+
+struct xrp_ioctl_stats {
+    __u8 reset;
+    __u64 total_dsp_time_us;
+    __u64 max_dsp_command_time_us;
+    __u32 total_dsp_commands;
+    __u8 current_threads_using_dsp;
+    __u8 max_threads_using_dsp;
 };
 
 #endif

@@ -21,6 +21,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "aligned_uptr.hpp"
 #include "buffer_list.hpp"
 #include "device.hpp"
 #include "hailo/hailodsp.h"
@@ -36,12 +37,33 @@ dsp_status dsp_get_utilization(dsp_device device, uint32_t &utilization)
         return DSP_INVALID_ARGUMENT;
     }
 
-    utilization_response_t response = {};
-    auto status = driver_send_command(device->fd, UTILIZATION_NSID, nullptr, 0, &response, sizeof(response));
+    auto response = make_aligned_uptr<utilization_response_t>();
+    auto status =
+        driver_send_command(device->fd, UTILIZATION_NSID, nullptr, 0, response.get(), sizeof(utilization_response_t));
     if (status != DSP_SUCCESS) {
         return status;
     }
 
-    utilization = response.utilization;
+    utilization = response->utilization;
     return DSP_SUCCESS;
+}
+
+dsp_status dsp_reset_kernel_statistics(dsp_device device)
+{
+    if (!device) {
+        LOGGER__ERROR("Error: device is null\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return driver_reset_kernel_statistics(device->fd);
+}
+
+dsp_status dsp_get_kernel_statistics(dsp_device device, kernel_statistics &stats)
+{
+    if (!device) {
+        LOGGER__ERROR("Error: device is null\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return driver_get_kernel_statistics(device->fd, stats);
 }

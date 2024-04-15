@@ -37,8 +37,10 @@
 #define MAX_BLEND_OVERLAYS (50)
 #define MAX_BLUR_ROIS (80)
 #define MAX_PRIVACY_MASK_ROIS (8)
-#define INTERFACE_MULTI_RESIZE_OUTPUTS_COUNT (7)
+#define MAX_MULTI_RESIZE_CROPS (260)
+#define MAX_MULTI_RESIZE_OUTPUTS (7)
 #define IDMA_TEST_BUFFER_SIZE (0x100)
+#define MAX_AFFINE_TRANSFORMATION_CROPS (80)
 
 #define IDMA_TEST_NSID "idmaidmaidmaidma"
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
@@ -47,6 +49,7 @@
 #define FIREWALL_TEST_NSID "firewallfirewall"
 #define IMAGING_NSID "imagingnamespace"
 #define UTILIZATION_NSID "utilizationcheck"
+#define DDR_TRAFFIC_NSID "ddrddrddrtraffic"
 
 typedef enum {
     IMAGING_OP_CROP_AND_RESIZE,
@@ -56,6 +59,8 @@ typedef enum {
     IMAGING_OP_DEWARP,
     IMAGING_OP_MULTI_CROP_AND_RESIZE,
     IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK,
+    IMAGING_OP_ROT_DIS_DEWARP,
+    IMAGING_OP_MULTI_AFFINE_TRANSFORM,
 } imaging_operation_t;
 
 enum dsp_interface_image_format {
@@ -64,6 +69,13 @@ enum dsp_interface_image_format {
     INTERFACE_IMAGE_FORMAT_NV12,
     INTERFACE_IMAGE_FORMAT_A420,
 };
+
+/** Letterbox aligment types */
+typedef enum {
+    INTERFACE_NO_LETTERBOX = 0,  /**< No letterbox resizing is performed */
+    INTERFACE_LETTERBOX_MIDDLE,  /**< Align the image to the middle */
+    INTERFACE_LETTERBOX_UP_LEFT, /**< Align the image up or left */
+} interface_letterbox_alignment_t;
 
 typedef struct {
     uint32_t xrp_buffer_index;
@@ -95,24 +107,50 @@ typedef struct {
     uint32_t rois_count;
 } privacy_mask_in_data_t;
 
+/** Color parameters */
+typedef union {
+    struct {
+        uint8_t gray;
+    };
+    struct {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+    };
+    struct {
+        uint8_t y;
+        uint8_t u;
+        uint8_t v;
+    };
+} color_t;
+
+/** Letterbox properties */
 typedef struct {
-    image_properties_t src;
-    image_properties_t dst;
-    uint32_t crop_start_x;
-    uint32_t crop_start_y;
-    uint32_t crop_end_x;
-    uint32_t crop_end_y;
-    uint8_t interpolation;
-} crop_resize_in_data_t;
+    /** Image alignment */
+    interface_letterbox_alignment_t alignment;
+    /** The color used for letterboxes */
+    color_t color;
+} letterbox_properties_t;
 
 typedef struct {
     image_properties_t src;
-    image_properties_t dst[INTERFACE_MULTI_RESIZE_OUTPUTS_COUNT];
-    uint32_t crop_start_x;
-    uint32_t crop_start_y;
-    uint32_t crop_end_x;
-    uint32_t crop_end_y;
+    image_properties_t dst;
+    roi_in_data_t crop;
+    uint8_t interpolation;
+    letterbox_properties_t letterbox;
+} crop_resize_in_data_t;
+
+typedef struct {
+    roi_in_data_t crop;
+    image_properties_t dst[MAX_MULTI_RESIZE_OUTPUTS];
     uint8_t dst_count;
+} multi_resize_in_data_t;
+
+typedef struct {
+    image_properties_t src;
+    image_properties_t helper;
+    multi_resize_in_data_t multi_resizes[MAX_MULTI_RESIZE_CROPS];
+    uint8_t multi_resizes_count;
     uint8_t interpolation;
     privacy_mask_in_data_t privacy_mask;
 } multi_crop_resize_in_data_t;
@@ -151,6 +189,50 @@ typedef struct {
 } dewarp_in_data_t;
 
 typedef struct {
+    float a11;
+    float a12;
+    float a13;
+    float a21;
+    float a22;
+    float a23;
+} affine_transform_matrix;
+
+typedef struct {
+    roi_in_data_t params;
+    image_properties_t dst;
+    affine_transform_matrix affine_matrix;
+} multi_warp_affine_cropped_part_t;
+
+typedef struct {
+    image_properties_t src;
+    multi_warp_affine_cropped_part_t crops[MAX_AFFINE_TRANSFORMATION_CROPS];
+    uint32_t crops_count;
+    uint8_t interpolation;
+} multi_warp_affine_params_t;
+
+typedef struct {
+    dewarp_in_data_t dewarp_args;
+    uint32_t dsp_vsm_hoffset;
+    uint32_t dsp_vsm_voffset;
+    uint32_t dsp_vsm_width;
+    uint32_t dsp_vsm_height;
+    uint32_t dsp_vsm_max_displacement;
+    data_plane_t prev_rows_sum;
+    data_plane_t prev_columns_sum;
+    data_plane_t cur_rows_sum;
+    data_plane_t cur_columns_sum;
+    uint32_t isp_center_x;
+    uint32_t isp_center_y;
+    int32_t isp_dx;
+    int32_t isp_dy;
+    float maximum_theta;
+    float alpha;
+    float prev_angles_sum;
+    float prev_traj;
+    uint8_t do_mesh_correction;
+} rot_dis_dewarp_in_data_t;
+
+typedef struct {
     int32_t operation;
     union {
         crop_resize_in_data_t crop_and_resize_args;
@@ -159,6 +241,8 @@ typedef struct {
         convert_format_in_data_t convert_format_args;
         dewarp_in_data_t dewarp_args;
         multi_crop_resize_in_data_t multi_crop_and_resize_args;
+        rot_dis_dewarp_in_data_t rot_dis_dewarp_args;
+        multi_warp_affine_params_t multi_affine_transform_args;
     };
 } imaging_request_t;
 
@@ -171,7 +255,8 @@ typedef struct {
     uint32_t process_tiles_total;
     uint32_t process_tiles_setup;
     uint32_t kernel;
-    uint32_t dma_wait;
+    uint32_t in_dma_wait;
+    uint32_t out_dma_wait;
     uint32_t setup_updates_tiles;
     uint32_t pad_edges;
     uint32_t ref_tile_setup;
@@ -192,11 +277,37 @@ typedef struct {
 } dewarp_perf_info_t;
 
 typedef struct {
+    uint32_t vsm_calculation_window;
+    uint32_t vsm_calculation_rows;
+    uint32_t vsm_calculation_cols;
+    uint32_t mesh_correction;
+    uint32_t dewarp;
+} rot_dis_dewarp_perf_info_t;
+
+typedef struct {
     uint32_t xrp_handler;
-    union {
-        fik_perf_into_t fik;
-        dewarp_perf_info_t dewarp;
-    };
+    fik_perf_into_t fik;
+    dewarp_perf_info_t dewarp;
+    rot_dis_dewarp_perf_info_t rot_dis_dewarp;
 } perf_info_t;
+
+typedef struct {
+    perf_info_t perf_info;
+    float cur_angles_sum;
+    float cur_traj;
+    float stabilized_theta;
+} rot_dis_dewarp_response_t;
+
+typedef enum {
+    DDR_TRAFFIC_READ,
+    DDR_TRAFFIC_WRITE,
+} ddr_traffic_operation_t;
+
+typedef struct {
+    int32_t operation;
+    uint64_t base_address;
+    uint8_t use_random_pattern;
+    uint16_t pattern;
+} ddr_traffic_request_t;
 
 #endif //_USER_DSP_INTERFACE_H

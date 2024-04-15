@@ -296,3 +296,38 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
 
     return status;
 }
+
+// This function assumes that "image" params is already checked for correctness
+dsp_status verify_crop_params(const dsp_image_properties_t *image, const dsp_roi_t *crop_params)
+{
+    if (!image || !crop_params) {
+        LOGGER__ERROR("Error: NULL argument (image={}, crop_params={})\n", fmt::ptr(image), fmt::ptr(crop_params));
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (crop_params->start_x >= crop_params->end_x) {
+        LOGGER__ERROR("Error: Crop start_x ({}) must be smaller then end_x ({})\n", crop_params->start_x,
+                      crop_params->end_x);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (crop_params->start_y >= crop_params->end_y) {
+        LOGGER__ERROR("Error: Crop start_y ({}) must be smaller then end_y ({})\n", crop_params->start_y,
+                      crop_params->end_y);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (crop_params->end_x > image->width) {
+        LOGGER__ERROR("Error: Crop end_x ({}) must be smaller or equal to image width ({})\n", crop_params->end_x,
+                      image->width);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (crop_params->end_y > image->height) {
+        LOGGER__ERROR("Error: Crop end_y ({}) must be smaller or equal to image height ({})\n", crop_params->end_y,
+                      image->height);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return DSP_SUCCESS;
+}

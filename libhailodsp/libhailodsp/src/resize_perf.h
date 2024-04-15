@@ -35,14 +35,17 @@ extern "C" {
 dsp_status dsp_crop_and_resize_perf(dsp_device device,
                                     const dsp_resize_params_t *resize_params,
                                     const dsp_roi_t *crop_params,
+                                    const dsp_letterbox_properties_t *letterbox_params,
                                     perf_info_t *perf_info);
 
-dsp_status dsp_resize_perf(dsp_device device, const dsp_resize_params_t *resize_params, perf_info_t *perf_info);
+dsp_status dsp_resize_perf(dsp_device device,
+                           const dsp_resize_params_t *resize_params,
+                           const dsp_letterbox_properties_t *letterbox_params,
+                           perf_info_t *perf_info);
 
 dsp_status dsp_multi_crop_and_resize_perf(
     dsp_device device,
-    const dsp_multi_resize_params_t *resize_params,
-    const dsp_roi_t *crop_params,
+    const dsp_multi_crop_resize_params_t *resize_params,
     const dsp_privacy_mask_t *privacy_mask_params, // optional, NULL for no privacy mask
     perf_info_t *perf_info);
 
