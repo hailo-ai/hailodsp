@@ -46,6 +46,8 @@ __attribute__((unused)) static inline const char *format_arg_to_string(int forma
             return "nv12";
         case DSP_IMAGE_FORMAT_A420:
             return "a420";
+        case DSP_IMAGE_FORMAT_ARGB:
+            return "argb";
         default:
             return "unknown";
     }

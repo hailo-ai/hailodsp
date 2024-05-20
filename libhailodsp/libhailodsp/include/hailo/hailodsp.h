@@ -104,6 +104,16 @@ typedef enum {
      */
     DSP_IMAGE_FORMAT_A420,
 
+    /**
+     * ARGB - RGB with alpha channel first (packed) format. One plane, each color component is 8bit \n
+     * @code
+     * +--+--+--+--+ +--+--+--+--+
+     * |A0|R0|G0|B0| |A1|R1|G1|B1| ...
+     * +--+--+--+--+ +--+--+--+--+
+     * @endcode
+     */
+    DSP_IMAGE_FORMAT_ARGB,
+
     /* Must be last */
     DSP_IMAGE_FORMAT_COUNT,
     /** Max enum value to maintain ABI Integrity */
@@ -438,7 +448,7 @@ dsp_status dsp_crop_and_resize_letterbox(dsp_device device,
 /**
  * @brief Perform multi crop and multi resize operation
  * @details Perform several crop operations on an image and then resize each cropped image to the specified sizes.
- *          Supported format of the operation is ::DSP_IMAGE_FORMAT_NV12.
+ *          Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12.
  *          The formats of the src image and dst image must be identical.
  * @param device A ::dsp_device object
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
@@ -469,7 +479,7 @@ dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
 
 /** Overlay parameters */
 typedef struct {
-    /** Overlay image to blend. Only ::DSP_IMAGE_FORMAT_A420 format is supported */
+    /** Overlay image to blend. Only ::DSP_IMAGE_FORMAT_A420 and ::DSP_IMAGE_FORMAT_ARGB formats are supported */
     dsp_image_properties_t overlay;
     /** Offset in the horizontal axis to place the blended overlay */
     size_t x_offset;
@@ -787,6 +797,51 @@ dsp_status dsp_multi_warp_affine(dsp_device device, const dsp_multi_warp_affine_
 dsp_status dsp_rotate(dsp_device device, const dsp_affine_rotation_params_t *rotate_params);
 /**
  *  @}
+ */
+
+/**
+ * @defgroup crop Crop API
+ * @{
+ */
+
+/** Crop parameters */
+typedef struct {
+    /** Image metadata for source image. Image data will not change */
+    const dsp_image_properties_t *src;
+    /** Image metadata for destination image */
+    dsp_image_properties_t *dst;
+    /** Region of interest (ROI) on src image to crop from */
+    dsp_roi_t src_roi;
+    /** Region of interest (ROI) on dst image to copy to.
+        dst_roi size (width and height) must be identical to src_roi */
+    dsp_roi_t dst_roi;
+} dsp_crop_params_t;
+
+/**
+ * @brief Perform crop and copy operation
+ * @details Perform copy of a region of interest (ROI) from the source image to a region of interest in the destination
+ *          image. Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB,
+ *          ::DSP_IMAGE_FORMAT_NV12, ::DSP_IMAGE_FORMAT_A420 and ::DSP_IMAGE_FORMAT_ARGB. The formats of the src image
+ *          and dst image must be identical.
+ * @param device A ::dsp_device object
+ * @param crop_params Pointer to ::dsp_crop_params_t with the required parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_crop(dsp_device device, const dsp_crop_params_t *crop_params);
+
+/**
+ * @brief Perform multi crop operation
+ * @details Perform multiple crop operations as described in ::dsp_crop
+ * @param device A ::dsp_device object
+ * @param multi_crop_params Pointer to an array of ::dsp_crop_params_t with the required parameters
+ * @param crops_count Number of crops in the \p multi_crop_params array
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ * @note The operation supports up to 80 crops
+ */
+dsp_status dsp_multi_crop(dsp_device device, const dsp_crop_params_t *multi_crop_params, size_t crops_count);
+
+/**
+ * @}
  */
 
 #ifdef __cplusplus

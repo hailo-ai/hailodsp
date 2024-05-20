@@ -21,6 +21,8 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "aligned_uptr.hpp"
+#include "dsp_tracer.hpp"
 #include "fcntl.h"
 #include "hailodsp_driver.hpp"
 #include "logger_macros.hpp"
@@ -33,7 +35,7 @@
 
 dsp_status driver_open_device(int &fd)
 {
-    const char *device_path = "/dev/xvp0";
+    const char *device_path = "/dev/dsp0";
     fd = open(device_path, O_RDWR);
     if (fd == -1) {
         LOGGER__ERROR("Error: Failed to open device \"{}\"", device_path);
@@ -133,7 +135,59 @@ dsp_status driver_send_command(int fd,
         .out_data_addr = reinterpret_cast<__u64>(out_data),
         .buffer_addr = reinterpret_cast<__u64>(buffer_list.get_buffers().data()),
         .nsid_addr = reinterpret_cast<__u64>(nsid.has_value() ? nsid.value().c_str() : nullptr),
+        .perf_stats_enabled = false,
     };
+
+    int ret = ioctl(fd, XRP_IOCTL_QUEUE, &ioctl_queue);
+    if (ret < 0) {
+        LOGGER__ERROR(
+            "Error: Failed to send command. For more information check Kernel log (dmesg) and DSP firmware log (cat "
+            "/dev/dsp_log0)");
+        return DSP_RUN_COMMAND_FAILED;
+    }
+
+    return DSP_SUCCESS;
+}
+
+dsp_status driver_send_command(int fd,
+                               std::optional<std::string> nsid,
+                               BufferList &buffer_list,
+                               task_timeframe_t *timeframe,
+                               const void *in_data,
+                               size_t in_data_size,
+                               void *out_data,
+                               size_t out_data_size)
+{
+    kernel_perf_stats_t kernel_perf_stats = {0};
+    __u64 tracing_out_data;
+    size_t tracing_out_data_size;
+    unique_ptr_aligned<perf_info_t> perf_info(nullptr, &free);
+    auto &tracer = DspTracer::get_instance();
+
+    /* Always collect perf info when tracing is enabled */
+    if (out_data_size == 0) {
+        perf_info = make_aligned_uptr<perf_info_t>();
+        tracing_out_data = reinterpret_cast<__u64>(perf_info.get());
+        tracing_out_data_size = sizeof(perf_info_t);
+    } else {
+        tracing_out_data = reinterpret_cast<__u64>(out_data);
+        tracing_out_data_size = out_data_size;
+    }
+
+    struct xrp_ioctl_queue ioctl_queue = {
+        .flags = static_cast<__u32>(nsid.has_value() ? XRP_QUEUE_FLAG_NSID : 0),
+        .in_data_size = static_cast<__u32>(in_data_size),
+        .out_data_size = static_cast<__u32>(tracing_out_data_size),
+        .buffer_size = static_cast<__u32>(buffer_list.get_buffers().size() * sizeof(struct xrp_ioctl_buffer)),
+        .in_data_addr = reinterpret_cast<__u64>(in_data),
+        .out_data_addr = tracing_out_data,
+        .buffer_addr = reinterpret_cast<__u64>(buffer_list.get_buffers().data()),
+        .nsid_addr = reinterpret_cast<__u64>(nsid.has_value() ? nsid.value().c_str() : nullptr),
+        .perf_stats_enabled = true,
+        .kernel_perf_stats_addr = reinterpret_cast<__u64>(&kernel_perf_stats),
+    };
+
+    tracer.update_event_timestamp_now(timeframe, DSP_USER_SPACE_FINISH_EVENT);
 
     int ret = ioctl(fd, XRP_IOCTL_QUEUE, &ioctl_queue);
     if (ret < 0) {
@@ -143,7 +197,28 @@ dsp_status driver_send_command(int fd,
         return DSP_RUN_COMMAND_FAILED;
     }
 
+    tracer.update_event_timestamp(timeframe, DSP_IOCTL_RECEIVED_EVENT, kernel_perf_stats.ioctl_received);
+    tracer.update_event_timestamp(timeframe, DSP_MUTEX_ACQUIRED_EVENT, kernel_perf_stats.mutex_acquired);
+    tracer.update_event_timestamp(timeframe, DSP_IRQ_SENT_EVENT, kernel_perf_stats.irq_sent);
+    tracer.update_event_timestamp(timeframe, DSP_FW_FINISH_EVENT, kernel_perf_stats.fw_finished);
+
+    if (out_data_size == 0) {
+        tracer.update_perf_info(timeframe, *((perf_info_t *)tracing_out_data));
+    }
+
     return DSP_SUCCESS;
+}
+
+dsp_status driver_send_command(int fd,
+                               std::optional<std::string> nsid,
+                               task_timeframe_t *timeframe,
+                               const void *in_data,
+                               size_t in_data_size,
+                               void *out_data,
+                               size_t out_data_size)
+{
+    BufferList buffer_list;
+    return driver_send_command(fd, nsid, buffer_list, timeframe, in_data, in_data_size, out_data, out_data_size);
 }
 
 dsp_status driver_send_command(int fd,

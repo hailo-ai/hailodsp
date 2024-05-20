@@ -24,6 +24,7 @@
 #pragma once
 
 #include "buffer_list.hpp"
+#include "dsp_tracer.hpp"
 
 #include <chrono>
 #include <hailo/hailodsp.h>
@@ -52,6 +53,23 @@ dsp_status driver_send_command(int fd,
                                size_t in_data_size = 0,
                                void *out_data = nullptr,
                                size_t out_data_size = 0);
+
+dsp_status driver_send_command(int fd,
+                               std::optional<std::string> nsid,
+                               BufferList &buffer_list,
+                               task_timeframe_t *timeframe,
+                               const void *in_data = nullptr,
+                               size_t in_data_size = 0,
+                               void *out_data = nullptr,
+                               size_t out_data_size = 0);
+
+dsp_status driver_send_command(int fd,
+                               std::optional<std::string> nsid,
+                               task_timeframe_t *timeframe,
+                               const void *in_data,
+                               size_t in_data_size,
+                               void *out_data,
+                               size_t out_data_size);
 
 struct kernel_statistics {
     std::chrono::microseconds total_dsp_time;

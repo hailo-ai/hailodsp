@@ -24,6 +24,7 @@
 #pragma once
 
 #include "buffer_list.hpp"
+#include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "user_dsp_interface.h"
 #include "xrp_types.h"
@@ -51,5 +52,21 @@ dsp_status send_command(dsp_device device,
                         size_t in_data_size,
                         void *out_data,
                         size_t out_data_size);
+
+dsp_status send_command(dsp_device device,
+                        BufferList &buffers,
+                        const void *in_data,
+                        size_t in_data_size,
+                        void *out_data,
+                        size_t out_data_size,
+                        task_timeframe_t *timeframe);
+
+dsp_status send_command(dsp_device device,
+                        std::vector<command_image_t> images,
+                        const void *in_data,
+                        size_t in_data_size,
+                        void *out_data,
+                        size_t out_data_size,
+                        task_timeframe_t *timeframe);
 
 dsp_status add_images_to_buffer_list(BufferList &buffer_list, std::vector<command_image_t> images);

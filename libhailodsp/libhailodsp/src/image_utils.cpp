@@ -34,10 +34,9 @@ static dsp_status convert_image_format(dsp_image_format_t format, enum dsp_inter
     dsp_status status = DSP_UNINITIALIZED;
 
     enum dsp_interface_image_format format_convert[] = {
-        [DSP_IMAGE_FORMAT_GRAY8] = INTERFACE_IMAGE_FORMAT_GRAY8,
-        [DSP_IMAGE_FORMAT_RGB] = INTERFACE_IMAGE_FORMAT_RGB,
-        [DSP_IMAGE_FORMAT_NV12] = INTERFACE_IMAGE_FORMAT_NV12,
-        [DSP_IMAGE_FORMAT_A420] = INTERFACE_IMAGE_FORMAT_A420,
+        [DSP_IMAGE_FORMAT_GRAY8] = INTERFACE_IMAGE_FORMAT_GRAY8, [DSP_IMAGE_FORMAT_RGB] = INTERFACE_IMAGE_FORMAT_RGB,
+        [DSP_IMAGE_FORMAT_NV12] = INTERFACE_IMAGE_FORMAT_NV12,   [DSP_IMAGE_FORMAT_A420] = INTERFACE_IMAGE_FORMAT_A420,
+        [DSP_IMAGE_FORMAT_ARGB] = INTERFACE_IMAGE_FORMAT_ARGB,
     };
 
     if ((size_t)format >= ARRAY_LENGTH(format_convert)) {
@@ -173,6 +172,24 @@ static dsp_status verify_rgb_image(const dsp_image_properties_t *image)
     return status;
 }
 
+static dsp_status verify_argb_image(const dsp_image_properties_t *image)
+{
+    dsp_status status = DSP_UNINITIALIZED;
+
+    if (image->planes_count != 1) {
+        LOGGER__ERROR("Error: ARGB format should contain 1 plane\n");
+        status = DSP_INVALID_ARGUMENT;
+        return status;
+    }
+
+    status = verify_plane(image, &image->planes[0], 4, 1, 1, 0);
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    return status;
+}
+
 static dsp_status verify_nv12_image(const dsp_image_properties_t *image)
 {
     dsp_status status = DSP_UNINITIALIZED;
@@ -275,6 +292,9 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
             break;
         case DSP_IMAGE_FORMAT_RGB:
             status = verify_rgb_image(image);
+            break;
+        case DSP_IMAGE_FORMAT_ARGB:
+            status = verify_argb_image(image);
             break;
         case DSP_IMAGE_FORMAT_NV12:
             status = verify_nv12_image(image);

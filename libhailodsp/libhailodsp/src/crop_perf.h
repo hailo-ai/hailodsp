@@ -23,14 +23,17 @@
 
 #pragma once
 
+#include "hailo/hailodsp.h"
+#include "user_dsp_interface.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <xrp_api.h>
-
-#define XRP_SUCCESS(xrp_status) ((xrp_status) == XRP_STATUS_SUCCESS)
-#define XRP_FAILURE(xrp_status) ((xrp_status) == XRP_STATUS_FAILURE)
+dsp_status dsp_multi_crop_perf(dsp_device device,
+                               const dsp_crop_params_t *multi_crop_params,
+                               size_t crops_count,
+                               perf_info_t *perf_info);
 
 #ifdef __cplusplus
 }

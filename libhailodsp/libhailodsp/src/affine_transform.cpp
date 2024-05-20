@@ -22,6 +22,7 @@
  */
 #include "affine_transform_perf.h"
 #include "aligned_uptr.hpp"
+#include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
@@ -75,6 +76,9 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
         LOGGER__ERROR("Error: NULL argument (device={})\n", fmt::ptr(device));
         return DSP_INVALID_ARGUMENT;
     }
+
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_MULTI_AFFINE_TRANSFORM);
 
     if ((multi_warp_affine_params->crops_count == 0) ||
         (multi_warp_affine_params->crops_count > MAX_AFFINE_TRANSFORMATION_CROPS)) {
@@ -151,7 +155,14 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
+                          timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing multi warp affine operation. Error code: {}\n", status);
     }

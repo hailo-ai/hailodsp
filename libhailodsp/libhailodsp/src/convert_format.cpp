@@ -20,8 +20,9 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
+#include "aligned_uptr.hpp"
 #include "convert_format_perf.h"
+#include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
@@ -43,6 +44,9 @@ dsp_status dsp_convert_format_perf(dsp_device device,
                       fmt::ptr(src), fmt::ptr(dst));
         return DSP_INVALID_ARGUMENT;
     }
+
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_CONVERT_FORMAT);
 
     auto status = verify_image_properties(src);
     if (status != DSP_SUCCESS) {
@@ -93,7 +97,14 @@ dsp_status dsp_convert_format_perf(dsp_device device,
     };
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status =
+        send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing format conversion operation. Error code: {}\n", status);
     }

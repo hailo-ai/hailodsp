@@ -23,6 +23,7 @@
 
 #include "aligned_uptr.hpp"
 #include "dewarp_perf.h"
+#include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
@@ -128,6 +129,9 @@ dsp_status dsp_dewarp_perf(dsp_device device,
         return status;
     }
 
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_DEWARP);
+
     size_t mesh_line_stride = mesh->mesh_width * 2 * 4;
     size_t mesh_size = mesh_line_stride * mesh->mesh_height;
 
@@ -167,8 +171,14 @@ dsp_status dsp_dewarp_perf(dsp_device device,
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
+    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
+                          timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
 
-    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}\n", status);
     }
@@ -301,6 +311,9 @@ dsp_status dsp_rot_dis_dewarp_perf(dsp_device device, dsp_dewarp_angular_dis_par
         return status;
     }
 
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_ROT_DIS_DEWARP);
+
     status = verify_rot_dis_dewarp_params(params);
     if (status != DSP_SUCCESS) {
         return status;
@@ -376,9 +389,11 @@ dsp_status dsp_rot_dis_dewarp_perf(dsp_device device, dsp_dewarp_angular_dis_par
     }
 
     auto out_data = make_aligned_uptr<rot_dis_dewarp_response_t>();
-
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), out_data.get(),
-                          sizeof(rot_dis_dewarp_response_t));
+                          sizeof(rot_dis_dewarp_response_t), timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_perf_info(timeframe, out_data->perf_info);
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}\n", status);
     }

@@ -82,6 +82,13 @@ enum {
         XRP_QUEUE_FLAG_PRIO,
 };
 
+typedef struct {
+    __u64 ioctl_received;
+    __u64 mutex_acquired;
+    __u64 irq_sent;
+    __u64 fw_finished;
+} kernel_perf_stats_t;
+
 struct xrp_ioctl_queue {
     __u32 flags;
     __u32 in_data_size;
@@ -91,6 +98,9 @@ struct xrp_ioctl_queue {
     __u64 out_data_addr;
     __u64 buffer_addr;
     __u64 nsid_addr;
+
+    __u8 perf_stats_enabled;
+    __u64 kernel_perf_stats_addr;
 };
 
 enum ioctl_sync_access_time {

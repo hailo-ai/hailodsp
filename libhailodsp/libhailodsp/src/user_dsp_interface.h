@@ -33,14 +33,16 @@
 
 #include <stdint.h>
 
+#define IDMA_TEST_BUFFER_SIZE (0x100)
+
 #define MAX_PLANES (4)
 #define MAX_BLEND_OVERLAYS (50)
 #define MAX_BLUR_ROIS (80)
 #define MAX_PRIVACY_MASK_ROIS (8)
 #define MAX_MULTI_RESIZE_CROPS (260)
 #define MAX_MULTI_RESIZE_OUTPUTS (7)
-#define IDMA_TEST_BUFFER_SIZE (0x100)
 #define MAX_AFFINE_TRANSFORMATION_CROPS (80)
+#define MAX_MULTI_CROP_ROIS (80)
 
 #define IDMA_TEST_NSID "idmaidmaidmaidma"
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
@@ -61,6 +63,8 @@ typedef enum {
     IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK,
     IMAGING_OP_ROT_DIS_DEWARP,
     IMAGING_OP_MULTI_AFFINE_TRANSFORM,
+    IMAGING_OP_MULTI_CROP,
+    IMAGING_OPS_COUNT,
 } imaging_operation_t;
 
 enum dsp_interface_image_format {
@@ -68,6 +72,7 @@ enum dsp_interface_image_format {
     INTERFACE_IMAGE_FORMAT_RGB,
     INTERFACE_IMAGE_FORMAT_NV12,
     INTERFACE_IMAGE_FORMAT_A420,
+    INTERFACE_IMAGE_FORMAT_ARGB,
 };
 
 /** Letterbox aligment types */
@@ -233,6 +238,18 @@ typedef struct {
 } rot_dis_dewarp_in_data_t;
 
 typedef struct {
+    image_properties_t src;
+    image_properties_t dst;
+    roi_in_data_t src_roi;
+    roi_in_data_t dst_roi;
+} crop_in_data_t;
+
+typedef struct {
+    crop_in_data_t crops[MAX_MULTI_CROP_ROIS];
+    uint32_t crops_count;
+} multi_crop_in_data_t;
+
+typedef struct {
     int32_t operation;
     union {
         crop_resize_in_data_t crop_and_resize_args;
@@ -243,6 +260,7 @@ typedef struct {
         multi_crop_resize_in_data_t multi_crop_and_resize_args;
         rot_dis_dewarp_in_data_t rot_dis_dewarp_args;
         multi_warp_affine_params_t multi_affine_transform_args;
+        multi_crop_in_data_t multi_crop_args;
     };
 } imaging_request_t;
 

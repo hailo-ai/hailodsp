@@ -70,3 +70,42 @@ dsp_status send_command(dsp_device device,
 
     return send_command(device, buffer_list, in_data, in_data_size, out_data, out_data_size);
 }
+
+dsp_status send_command(dsp_device device,
+                        BufferList &buffers,
+                        const void *in_data,
+                        size_t in_data_size,
+                        void *out_data,
+                        size_t out_data_size,
+                        task_timeframe_t *timeframe)
+{
+    if (timeframe) {
+        return driver_send_command(device->fd, IMAGING_NSID, buffers, timeframe, in_data, in_data_size, out_data,
+                                   out_data_size);
+    } else {
+        return driver_send_command(device->fd, IMAGING_NSID, buffers, in_data, in_data_size, out_data, out_data_size);
+    }
+}
+
+dsp_status send_command(dsp_device device,
+                        std::vector<command_image_t> images,
+                        const void *in_data,
+                        size_t in_data_size,
+                        void *out_data,
+                        size_t out_data_size,
+                        task_timeframe_t *timeframe)
+{
+    BufferList buffer_list;
+    auto status = add_images_to_buffer_list(buffer_list, images);
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    if (timeframe) {
+        return driver_send_command(device->fd, IMAGING_NSID, buffer_list, timeframe, in_data, in_data_size, out_data,
+                                   out_data_size);
+    } else {
+        return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data,
+                                   out_data_size);
+    }
+}

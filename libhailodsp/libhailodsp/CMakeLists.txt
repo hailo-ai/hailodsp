@@ -34,9 +34,11 @@ add_library(
   src/dewarp.cpp
   src/logger.cpp
   src/hailodsp_driver.cpp
-  src/utilization.cpp)
+  src/utilization.cpp
+  src/crop.cpp
+  src/dsp_tracer.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.3.0)
+set_target_properties(hailodsp PROPERTIES VERSION 1.3.1)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

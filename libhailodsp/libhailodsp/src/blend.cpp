@@ -20,8 +20,9 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
+#include "aligned_uptr.hpp"
 #include "blend_perf.h"
+#include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
@@ -64,6 +65,9 @@ dsp_status dsp_blend_perf(dsp_device device,
                       fmt::ptr(device), fmt::ptr(image), fmt::ptr(overlays));
         return DSP_INVALID_ARGUMENT;
     }
+
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_BLEND);
 
     if (overlays_count > MAX_BLEND_OVERLAYS) {
         LOGGER__ERROR("Error: Too many overlays. The operation supports up to {} overlays\n", MAX_BLEND_OVERLAYS);
@@ -112,8 +116,10 @@ dsp_status dsp_blend_perf(dsp_device device,
             return status;
         }
 
-        if (overlays[i].overlay.format != DSP_IMAGE_FORMAT_A420) {
-            LOGGER__ERROR("Error: Overlay format is not supported\n");
+        if (overlays[i].overlay.format != DSP_IMAGE_FORMAT_A420 &&
+            overlays[i].overlay.format != DSP_IMAGE_FORMAT_ARGB) {
+            LOGGER__ERROR("Error: Overlay[{}] format ({}) is not supported\n", i,
+                          format_arg_to_string(overlays[i].overlay.format));
             return DSP_INVALID_ARGUMENT;
         }
 
@@ -128,7 +134,14 @@ dsp_status dsp_blend_perf(dsp_device device,
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status =
+        send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing blend operation. Error code: {}\n", status);
     }

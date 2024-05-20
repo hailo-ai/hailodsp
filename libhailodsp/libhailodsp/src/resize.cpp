@@ -20,7 +20,8 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
+#include "aligned_uptr.hpp"
+#include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
@@ -144,6 +145,8 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
         return DSP_INVALID_ARGUMENT;
     }
 
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_CROP_AND_RESIZE);
     auto status = verify_crop_params(resize_params->src, crop_params);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Crop parameters check failed\n");
@@ -228,7 +231,14 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     };
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status =
+        send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
     }
@@ -295,6 +305,10 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
                       fmt::ptr(mutli_crop_resize_params));
         return DSP_INVALID_ARGUMENT;
     }
+
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(
+        privacy_mask_params ? IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK : IMAGING_OP_MULTI_CROP_AND_RESIZE);
 
     auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params);
     if (status != DSP_SUCCESS) {
@@ -438,7 +452,14 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size);
+    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
+                          timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
     }
