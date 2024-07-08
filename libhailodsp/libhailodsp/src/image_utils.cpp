@@ -26,7 +26,6 @@
 #include "user_dsp_interface.h"
 
 #include <cmath>
-#include <cstdio>
 #include <utils.h>
 
 static dsp_status convert_image_format(dsp_image_format_t format, enum dsp_interface_image_format *interface_format)
@@ -34,9 +33,12 @@ static dsp_status convert_image_format(dsp_image_format_t format, enum dsp_inter
     dsp_status status = DSP_UNINITIALIZED;
 
     enum dsp_interface_image_format format_convert[] = {
-        [DSP_IMAGE_FORMAT_GRAY8] = INTERFACE_IMAGE_FORMAT_GRAY8, [DSP_IMAGE_FORMAT_RGB] = INTERFACE_IMAGE_FORMAT_RGB,
-        [DSP_IMAGE_FORMAT_NV12] = INTERFACE_IMAGE_FORMAT_NV12,   [DSP_IMAGE_FORMAT_A420] = INTERFACE_IMAGE_FORMAT_A420,
+        [DSP_IMAGE_FORMAT_GRAY8] = INTERFACE_IMAGE_FORMAT_GRAY8,
+        [DSP_IMAGE_FORMAT_RGB] = INTERFACE_IMAGE_FORMAT_RGB,
+        [DSP_IMAGE_FORMAT_NV12] = INTERFACE_IMAGE_FORMAT_NV12,
+        [DSP_IMAGE_FORMAT_A420] = INTERFACE_IMAGE_FORMAT_A420,
         [DSP_IMAGE_FORMAT_ARGB] = INTERFACE_IMAGE_FORMAT_ARGB,
+        [DSP_IMAGE_FORMAT_GRAY16] = INTERFACE_IMAGE_FORMAT_GRAY16,
     };
 
     if ((size_t)format >= ARRAY_LENGTH(format_convert)) {
@@ -120,22 +122,6 @@ static dsp_status verify_plane(const dsp_image_properties_t *image,
     return status;
 }
 
-static dsp_status verify_yuv420_image(const dsp_image_properties_t *image)
-{
-    dsp_status status = DSP_UNINITIALIZED;
-
-    if ((image->width % 2 != 0) || (image->height % 2 != 0)) {
-        LOGGER__ERROR(
-            "Error: In YUV420 based formats (such as NV12, A420), image width and height must be even numbers\n");
-        status = DSP_INVALID_ARGUMENT;
-        return status;
-    }
-
-    status = DSP_SUCCESS;
-
-    return status;
-}
-
 static dsp_status verify_gray8_image(const dsp_image_properties_t *image)
 {
     dsp_status status = DSP_UNINITIALIZED;
@@ -147,6 +133,24 @@ static dsp_status verify_gray8_image(const dsp_image_properties_t *image)
     }
 
     status = verify_plane(image, &image->planes[0], 1, 1, 1, 0);
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    return status;
+}
+
+static dsp_status verify_gray16_image(const dsp_image_properties_t *image)
+{
+    dsp_status status = DSP_UNINITIALIZED;
+
+    if (image->planes_count != 1) {
+        LOGGER__ERROR("Error: Gray8 format should contain 1 plane\n");
+        status = DSP_INVALID_ARGUMENT;
+        return status;
+    }
+
+    status = verify_plane(image, &image->planes[0], 2, 1, 1, 0);
     if (status != DSP_SUCCESS) {
         return status;
     }
@@ -186,6 +190,22 @@ static dsp_status verify_argb_image(const dsp_image_properties_t *image)
     if (status != DSP_SUCCESS) {
         return status;
     }
+
+    return status;
+}
+
+static dsp_status verify_yuv420_image(const dsp_image_properties_t *image)
+{
+    dsp_status status = DSP_UNINITIALIZED;
+
+    if ((image->width % 2 != 0) || (image->height % 2 != 0)) {
+        LOGGER__ERROR(
+            "Error: In YUV420 based formats (such as NV12, A420), image width and height must be even numbers\n");
+        status = DSP_INVALID_ARGUMENT;
+        return status;
+    }
+
+    status = DSP_SUCCESS;
 
     return status;
 }
@@ -289,6 +309,9 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
     switch (image->format) {
         case DSP_IMAGE_FORMAT_GRAY8:
             status = verify_gray8_image(image);
+            break;
+        case DSP_IMAGE_FORMAT_GRAY16:
+            status = verify_gray16_image(image);
             break;
         case DSP_IMAGE_FORMAT_RGB:
             status = verify_rgb_image(image);

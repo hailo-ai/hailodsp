@@ -29,8 +29,6 @@
 #include "thread_local_buffer.hpp"
 #include "user_dsp_interface.h"
 
-#include <cstdio>
-#include <memory>
 #include <utils.h>
 
 dsp_status dsp_multi_crop_perf(dsp_device device,
@@ -134,26 +132,20 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
             .access_type = BufferAccessType::Write,
         });
 
-        in_data->multi_crop_args.crops[i].src_roi.start_x = single_crop_params->src_roi.start_x;
-        in_data->multi_crop_args.crops[i].src_roi.start_y = single_crop_params->src_roi.start_y;
-        in_data->multi_crop_args.crops[i].src_roi.end_x = single_crop_params->src_roi.end_x;
-        in_data->multi_crop_args.crops[i].src_roi.end_y = single_crop_params->src_roi.end_y;
-        in_data->multi_crop_args.crops[i].dst_roi.start_x = single_crop_params->dst_roi.start_x;
-        in_data->multi_crop_args.crops[i].dst_roi.start_y = single_crop_params->dst_roi.start_y;
-        in_data->multi_crop_args.crops[i].dst_roi.end_x = single_crop_params->dst_roi.end_x;
-        in_data->multi_crop_args.crops[i].dst_roi.end_y = single_crop_params->dst_roi.end_y;
-    }
-
-    BufferList buffer_list;
-    auto status = add_images_to_buffer_list(buffer_list, images);
-    if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
-        return status;
+        auto single_crop_args = &in_data->multi_crop_args.crops[i];
+        single_crop_args->src_roi.start_x = single_crop_params->src_roi.start_x;
+        single_crop_args->src_roi.start_y = single_crop_params->src_roi.start_y;
+        single_crop_args->src_roi.end_x = single_crop_params->src_roi.end_x;
+        single_crop_args->src_roi.end_y = single_crop_params->src_roi.end_y;
+        single_crop_args->dst_roi.start_x = single_crop_params->dst_roi.start_x;
+        single_crop_args->dst_roi.start_y = single_crop_params->dst_roi.start_y;
+        single_crop_args->dst_roi.end_x = single_crop_params->dst_roi.end_x;
+        single_crop_args->dst_roi.end_y = single_crop_params->dst_roi.end_y;
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
-                          timeframe);
+    auto status =
+        send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);
     }

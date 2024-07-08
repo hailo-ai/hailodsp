@@ -43,6 +43,8 @@
 #define MAX_MULTI_RESIZE_OUTPUTS (7)
 #define MAX_AFFINE_TRANSFORMATION_CROPS (80)
 #define MAX_MULTI_CROP_ROIS (80)
+#define MAX_MULTI_FILTERS (80)
+#define MAX_FILTER_KERNEL_SIZE (33)
 
 #define IDMA_TEST_NSID "idmaidmaidmaidma"
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
@@ -64,6 +66,8 @@ typedef enum {
     IMAGING_OP_ROT_DIS_DEWARP,
     IMAGING_OP_MULTI_AFFINE_TRANSFORM,
     IMAGING_OP_MULTI_CROP,
+    IMAGING_OP_MULTI_GAUSSIAN,
+    IMAGING_OP_MULTI_LAPLACIAN,
     IMAGING_OPS_COUNT,
 } imaging_operation_t;
 
@@ -73,6 +77,7 @@ enum dsp_interface_image_format {
     INTERFACE_IMAGE_FORMAT_NV12,
     INTERFACE_IMAGE_FORMAT_A420,
     INTERFACE_IMAGE_FORMAT_ARGB,
+    INTERFACE_IMAGE_FORMAT_GRAY16,
 };
 
 /** Letterbox aligment types */
@@ -250,6 +255,27 @@ typedef struct {
 } multi_crop_in_data_t;
 
 typedef struct {
+    image_properties_t src;
+    image_properties_t dst;
+    uint32_t kernel_size;
+} gaussian_in_data_t;
+
+typedef struct {
+    gaussian_in_data_t filters[MAX_MULTI_FILTERS];
+    uint32_t filters_count;
+} multi_gaussian_in_data_t;
+
+typedef struct {
+    image_properties_t src;
+    image_properties_t dst;
+} laplacian_in_data_t;
+
+typedef struct {
+    laplacian_in_data_t filters[MAX_MULTI_FILTERS];
+    uint32_t filters_count;
+} multi_laplacian_in_data_t;
+
+typedef struct {
     int32_t operation;
     union {
         crop_resize_in_data_t crop_and_resize_args;
@@ -261,6 +287,8 @@ typedef struct {
         rot_dis_dewarp_in_data_t rot_dis_dewarp_args;
         multi_warp_affine_params_t multi_affine_transform_args;
         multi_crop_in_data_t multi_crop_args;
+        multi_gaussian_in_data_t multi_gaussian_args;
+        multi_laplacian_in_data_t multi_laplacian_args;
     };
 } imaging_request_t;
 
@@ -281,6 +309,7 @@ typedef struct {
     uint32_t in_dma_config;
     uint32_t out_dma_config;
     uint32_t tiles_count;
+    uint32_t optimal_tile_calc;
 } fik_perf_into_t;
 
 typedef struct {
@@ -321,11 +350,14 @@ typedef enum {
     DDR_TRAFFIC_WRITE,
 } ddr_traffic_operation_t;
 
+#define DDR_TRAFFIC_MAX_PATTERN_SIZE (32)
 typedef struct {
     int32_t operation;
     uint64_t base_address;
     uint8_t use_random_pattern;
-    uint16_t pattern;
+    uint32_t mask;
+    uint32_t pattern[DDR_TRAFFIC_MAX_PATTERN_SIZE];
+    uint32_t pattern_size;
 } ddr_traffic_request_t;
 
 #endif //_USER_DSP_INTERFACE_H

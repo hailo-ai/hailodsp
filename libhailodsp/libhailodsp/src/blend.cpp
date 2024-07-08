@@ -20,7 +20,6 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "aligned_uptr.hpp"
 #include "blend_perf.h"
 #include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
@@ -30,7 +29,6 @@
 #include "thread_local_buffer.hpp"
 #include "user_dsp_interface.h"
 
-#include <cstdio>
 #include <utils.h>
 
 static dsp_status verify_overlay_params(const dsp_image_properties_t *image, const dsp_overlay_properties_t *overlay)
@@ -136,7 +134,7 @@ dsp_status dsp_blend_perf(dsp_device device,
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status =
         send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
 
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);

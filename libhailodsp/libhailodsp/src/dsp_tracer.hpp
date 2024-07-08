@@ -32,23 +32,27 @@
 #include <vector>
 
 typedef enum {
-    DSP_USER_SPACE_START_EVENT,
-    DSP_USER_SPACE_FINISH_EVENT,
-    DSP_IOCTL_RECEIVED_EVENT,
+    DSP_TASK_STARTED_EVENT,
+    DSP_USER_SENT_IOCTL_EVENT,
+    DSP_KERNEL_RECEIVED_IOCTL_EVENT,
+    DSP_WAITING_ON_MUTEX_EVENT,
     DSP_MUTEX_ACQUIRED_EVENT,
     DSP_IRQ_SENT_EVENT,
-    DSP_FW_FINISH_EVENT,
-    DSP_TASK_FINISH_EVENT,
+    DSP_FW_FINISHED_EVENT,
+    DSP_MUTEX_RELEASED_EVENT,
+    DSP_TASK_FINISHED_EVENT,
 } dsp_trace_event_type_t;
 
 typedef struct {
-    uint64_t user_space_start;
-    uint64_t user_space_finish;
-    uint64_t ioctl_received;
+    uint64_t task_started;
+    uint64_t user_sent_ioctl;
+    uint64_t kernel_received_ioctl;
+    uint64_t waiting_on_mutex;
     uint64_t mutex_acquired;
     uint64_t irq_sent;
-    uint64_t dsp_finish;
-    uint64_t task_finish;
+    uint64_t fw_finished;
+    uint64_t mutex_released;
+    uint64_t task_finished;
 } a53_timeframe_t;
 
 typedef struct {

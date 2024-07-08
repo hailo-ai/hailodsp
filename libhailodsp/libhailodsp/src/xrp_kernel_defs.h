@@ -83,10 +83,12 @@ enum {
 };
 
 typedef struct {
-    __u64 ioctl_received;
+    __u64 kernel_received_ioctl;
+    __u64 waiting_on_mutex;
     __u64 mutex_acquired;
     __u64 irq_sent;
     __u64 fw_finished;
+    __u64 mutex_released;
 } kernel_perf_stats_t;
 
 struct xrp_ioctl_queue {

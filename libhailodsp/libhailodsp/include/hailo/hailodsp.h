@@ -35,7 +35,8 @@ extern "C" {
 
 #define DSP_MAX_ENUM (INT_MAX)
 
-/** @defgroup status DSP Status codes
+/**
+ *  @defgroup status DSP Status codes
  *  @{
  */
 
@@ -60,7 +61,9 @@ typedef enum {
     DSP_STATUS_MAX_ENUM = DSP_MAX_ENUM /**< Max enum value to maintain ABI Integrity */
 } dsp_status;
 
-/** @}
+/**
+ *  @}
+ *
  *  @defgroup group_image_properties Image Properties
  *  @{
  */
@@ -113,6 +116,9 @@ typedef enum {
      * @endcode
      */
     DSP_IMAGE_FORMAT_ARGB,
+
+    /** Grayscale format. One plane, each pixel is 16bit */
+    DSP_IMAGE_FORMAT_GRAY16,
 
     /* Must be last */
     DSP_IMAGE_FORMAT_COUNT,
@@ -231,6 +237,7 @@ typedef struct {
 
 /**
  *  @}
+ *
  *  @defgroup group_device_management Device Management API
  *  @{
  */
@@ -257,7 +264,6 @@ dsp_status dsp_release_device(dsp_device device);
 
 /**
  *  @}
- *
  *  @defgroup buffer_mgnt Buffer Managment API
  *  @{
  */
@@ -317,7 +323,6 @@ dsp_status dsp_buffer_sync_end(void *buffer, dsp_sync_direction_t direction);
 
 /**
  *  @}
- *
  *  @defgroup resize Crop & Resize API
  *  @note some APIs also support an application of a privacy mask
  *  @{
@@ -407,7 +412,8 @@ typedef struct {
  * @brief Perform resize operation
  * @details The function resizes the image down to or up to the specified size
  *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
- *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical
+ *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical.
+ *          The destination image can only be upscaled or downscaled up to a factor of 16.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
@@ -418,7 +424,8 @@ dsp_status dsp_resize(dsp_device device, const dsp_resize_params_t *resize_param
  * @brief Perform crop&resize operation
  * @details Perform crop operation on an image and then resize the cropped image to the specified size.
  *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
- *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical
+ *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical.
+ *          The destination image can only be upscaled or downscaled up to a factor of 16.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
  * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
@@ -433,7 +440,8 @@ dsp_status dsp_crop_and_resize(dsp_device device,
  * @details Perform crop operation on an image and then resize the cropped image to the specified size.
  *          The resized image keeps the aspect ratio of the src image.
  *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
- *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical
+ *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical.
+ *          The destination image can only be upscaled or downscaled up to a factor of 16.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
  * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
@@ -450,6 +458,7 @@ dsp_status dsp_crop_and_resize_letterbox(dsp_device device,
  * @details Perform several crop operations on an image and then resize each cropped image to the specified sizes.
  *          Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12.
  *          The formats of the src image and dst image must be identical.
+ *          The destination image can only be upscaled or downscaled up to a factor of 32.
  * @param device A ::dsp_device object
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
@@ -460,7 +469,8 @@ dsp_status dsp_multi_crop_and_resize(dsp_device device, const dsp_multi_crop_res
  * @brief Apply a privacy mask and perform multi crop&resize operation
  * @details Same as ::dsp_multi_crop_and_resize, but before performing the crops and resizes,
  *          a privacy mask is applied to the source image (the image is unmodified)
- *          Every output preserves the privacy mask
+ *          Every output preserves the privacy mask.
+ *          The destination image can only be upscaled or downscaled up to a factor of 32.
  * @param device A ::dsp_device object
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
@@ -472,7 +482,6 @@ dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
 
 /**
  *  @}
- *
  *  @defgroup blend Blend API
  *  @{
  */
@@ -505,7 +514,6 @@ dsp_status dsp_blend(dsp_device device,
 
 /**
  *  @}
- *
  *  @defgroup blur Blur API
  *  @{
  */
@@ -538,7 +546,6 @@ dsp_status dsp_blur(dsp_device device,
 
 /**
  *  @}
- *
  *  @defgroup convert Format Conversion API
  *  @{
  */
@@ -559,7 +566,6 @@ dsp_status dsp_convert_format(dsp_device device, const dsp_image_properties_t *s
 
 /**
  *  @}
- *
  *  @defgroup dewarp Dewarp API
  *  @{
  */
@@ -650,7 +656,7 @@ typedef struct {
     /** Mesh information */
     const dsp_dewarp_mesh_t *mesh;
     /** Interpolation method to use.
-     *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported */
+     *  Only ::INTERPOLATION_TYPE_BILINEAR is supported */
     dsp_interpolation_type_t interpolation;
     /** Determine if angular correction of the frame should be performed */
     bool do_mesh_correction;
@@ -672,7 +678,7 @@ typedef struct {
  * @param dst Image metadata for destination image
  * @param mesh Mesh information
  * @param interpolation Interpolation method to use.
- *                      Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported
+ *                      Only ::INTERPOLATION_TYPE_BILINEAR is supported
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error */
 dsp_status dsp_dewarp(dsp_device device,
                       const dsp_image_properties_t *src,
@@ -692,7 +698,6 @@ dsp_status dsp_rot_dis_dewarp(dsp_device device, dsp_dewarp_angular_dis_params_t
 
 /**
  *  @}
- *
  *  @defgroup affine Affine transformation API
  *  @{
  */
@@ -795,13 +800,12 @@ dsp_status dsp_multi_warp_affine(dsp_device device, const dsp_multi_warp_affine_
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_rotate(dsp_device device, const dsp_affine_rotation_params_t *rotate_params);
-/**
- *  @}
- */
 
 /**
- * @defgroup crop Crop API
- * @{
+ *  @}
+ *
+ *  @defgroup crop Crop API
+ *  @{
  */
 
 /** Crop parameters */
@@ -839,6 +843,75 @@ dsp_status dsp_crop(dsp_device device, const dsp_crop_params_t *crop_params);
  * @note The operation supports up to 80 crops
  */
 dsp_status dsp_multi_crop(dsp_device device, const dsp_crop_params_t *multi_crop_params, size_t crops_count);
+
+/**
+ *  @}
+ *
+ *  @defgroup filters Filters API
+ *  @{
+ */
+
+typedef struct {
+    /** Source image (unmodified) */
+    const dsp_image_properties_t *src;
+    /** Destination image (after filter application) */
+    dsp_image_properties_t *dst;
+    /**
+     * kernel size, must be an odd number between 1 and 33
+     * @note For kernel sizes of 3 and 5, a custom implementation is used for optimization. Higher kernel sizes use a
+     * generic implementation
+     */
+    uint32_t kernel_size;
+} dsp_gaussian_params_t;
+
+/**
+ * @brief Perform gaussian operation
+ * @details Apply a gaussian kernel to an image. Supported format is ::DSP_IMAGE_FORMAT_GRAY8
+ * @param device A ::dsp_device object
+ * @param params Pointer to ::dsp_gaussian_params_t with the required parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_gaussian(dsp_device device, dsp_gaussian_params_t *params);
+/**
+ * @brief Perform multi gaussian operation
+ * @details Perform multiple gaussian operations as described in ::dsp_gaussian
+ * @param device A ::dsp_device object
+ * @param params Pointer to an array of ::dsp_gaussian_params_t with the required parameters
+ * @param params_count Number of entrie in the \p params array
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_multi_gaussian(dsp_device device, dsp_gaussian_params_t *params, size_t params_count);
+
+typedef struct {
+    /** Source image (unmodified). Must be of format ::DSP_IMAGE_FORMAT_GRAY8 */
+    const dsp_image_properties_t *src;
+    /** Destination image (after filter application). Must be of format ::DSP_IMAGE_FORMAT_GRAY16 */
+    dsp_image_properties_t *dst;
+} dsp_laplacian_params_t;
+
+/**
+ * @brief Perform laplacian operation
+ * @details Apply a laplacian kernel to an image
+ * @param device A ::dsp_device object
+ * @param params Pointer to ::dsp_laplacian_params_t with the required parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ * @note The laplacian kernel used in the operation is:
+ * \f$\begin{bmatrix}
+ * 0 &  1 & 0 \\
+ * 1 & -4 & 1 \\
+ * 0 &  1 & 0
+ * \end{bmatrix}\f$
+ */
+dsp_status dsp_laplacian(dsp_device device, dsp_laplacian_params_t *params);
+/**
+ * @brief Perform multi laplacian operation
+ * @details Perform multiple laplacian operations as described in ::dsp_laplacian
+ * @param device A ::dsp_device object
+ * @param params Pointer to an array of ::dsp_laplacian_params_t with the required parameters
+ * @param params_count Number of entrie in the \p params array
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_multi_laplacian(dsp_device device, dsp_laplacian_params_t *params, size_t params_count);
 
 /**
  * @}

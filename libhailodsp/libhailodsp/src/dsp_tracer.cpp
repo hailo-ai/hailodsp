@@ -41,7 +41,7 @@
 #define DSP_TRACER_WRITE_PERIOD_ENV_VAR ("DSP_TRACE_WRITE_PERIOD")
 #define DSP_TRACER_WRITE_PERIOD_MSEC_DEFAULT_VAL (10000)
 
-std::string dsp_tasks_strs[IMAGING_OPS_COUNT] = {
+std::string dsp_tasks_strs[] = {
     [IMAGING_OP_CROP_AND_RESIZE] = "Crop and resize",
     [IMAGING_OP_BLEND] = "Blend",
     [IMAGING_OP_BLUR] = "Blur",
@@ -51,7 +51,13 @@ std::string dsp_tasks_strs[IMAGING_OPS_COUNT] = {
     [IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK] = "Multi crop and resize privacy mask",
     [IMAGING_OP_ROT_DIS_DEWARP] = "Rot dis dewarp",
     [IMAGING_OP_MULTI_AFFINE_TRANSFORM] = "Affine transform",
+    [IMAGING_OP_MULTI_CROP] = "Multi crop",
+    [IMAGING_OP_MULTI_GAUSSIAN] = "Multi gaussian",
+    [IMAGING_OP_MULTI_LAPLACIAN] = "Multi laplacian",
 };
+
+static_assert(ARRAY_LENGTH(dsp_tasks_strs) == IMAGING_OPS_COUNT,
+              "dsp_tasks_strs must have an entry for each imaging operation type");
 
 DspTracer::DspTracer()
 {
@@ -85,8 +91,9 @@ dsp_status DspTracer::create_output_file()
         is_tracing_enabled = false;
         return DSP_OUT_OF_HOST_MEMORY;
     }
-    *output_file << "TID,Task name,User space start,User space finish,IOCTL received,"
-                    "Mutex acquired,IRQ sent,DSP finished,Task finished,XRP handler,"
+    *output_file << "TID,Task name,Task started,User sent IOCTL,Kernel received IOCTL,"
+                    "Waiting on mutex,Mutex acquired,IRQ sent,FW finished,"
+                    "Mutex released,Task finished,XRP handler,"
                     "Get arg params context,Process tiles total,Process tiles setup,"
                     "Kernel,In DMA wait,Out DMA wait,Setup updates tiles,Pad edges,"
                     "Ref tile setup,In DMA config,Out dma config,Tiles_count"
@@ -137,7 +144,7 @@ task_timeframe_t *DspTracer::start_tracing(imaging_operation_t task_type)
         .a53_times = {0},
         .dsp_perf_info = {0},
     };
-    trace_handlers[available_index].a53_times.user_space_start = get_time_since_boot_ns();
+    trace_handlers[available_index].a53_times.task_started = get_time_since_boot_ns();
 
     if (max_task_index < max_tasks_amount) {
         max_task_index++;
@@ -154,11 +161,14 @@ void DspTracer::update_event_timestamp(task_timeframe_t *task, dsp_trace_event_t
 
     std::lock_guard<std::mutex> lock(trace_handlers_mutex);
     switch (event_type) {
-        case DSP_USER_SPACE_FINISH_EVENT:
-            task->a53_times.user_space_finish = time;
+        case DSP_USER_SENT_IOCTL_EVENT:
+            task->a53_times.user_sent_ioctl = time;
             break;
-        case DSP_IOCTL_RECEIVED_EVENT:
-            task->a53_times.ioctl_received = time;
+        case DSP_KERNEL_RECEIVED_IOCTL_EVENT:
+            task->a53_times.kernel_received_ioctl = time;
+            break;
+        case DSP_WAITING_ON_MUTEX_EVENT:
+            task->a53_times.waiting_on_mutex = time;
             break;
         case DSP_MUTEX_ACQUIRED_EVENT:
             task->a53_times.mutex_acquired = time;
@@ -166,11 +176,14 @@ void DspTracer::update_event_timestamp(task_timeframe_t *task, dsp_trace_event_t
         case DSP_IRQ_SENT_EVENT:
             task->a53_times.irq_sent = time;
             break;
-        case DSP_FW_FINISH_EVENT:
-            task->a53_times.dsp_finish = time;
+        case DSP_FW_FINISHED_EVENT:
+            task->a53_times.fw_finished = time;
             break;
-        case DSP_TASK_FINISH_EVENT:
-            task->a53_times.task_finish = time;
+        case DSP_MUTEX_RELEASED_EVENT:
+            task->a53_times.mutex_released = time;
+            break;
+        case DSP_TASK_FINISHED_EVENT:
+            task->a53_times.task_finished = time;
             break;
         default:
             break;
@@ -231,7 +244,7 @@ void DspTracer::write_to_file_periodically(std::chrono::milliseconds period)
 
 bool DspTracer::is_task_finished(task_timeframe_t &task)
 {
-    return task.a53_times.task_finish != 0;
+    return task.a53_times.task_finished != 0;
 }
 
 dsp_status DspTracer::write_timeframes_to_file()
@@ -257,13 +270,15 @@ dsp_status DspTracer::write_timeframes_to_file()
 
         *output_file << handler.tid << ",";
         *output_file << dsp_tasks_strs[handler.task_type] << ",";
-        *output_file << handler.a53_times.user_space_start << ",";
-        *output_file << handler.a53_times.user_space_finish << ",";
-        *output_file << handler.a53_times.ioctl_received << ",";
+        *output_file << handler.a53_times.task_started << ",";
+        *output_file << handler.a53_times.user_sent_ioctl << ",";
+        *output_file << handler.a53_times.kernel_received_ioctl << ",";
+        *output_file << handler.a53_times.waiting_on_mutex << ",";
         *output_file << handler.a53_times.mutex_acquired << ",";
         *output_file << handler.a53_times.irq_sent << ",";
-        *output_file << handler.a53_times.dsp_finish << ",";
-        *output_file << handler.a53_times.task_finish << ",";
+        *output_file << handler.a53_times.fw_finished << ",";
+        *output_file << handler.a53_times.mutex_released << ",";
+        *output_file << handler.a53_times.task_finished << ",";
         *output_file << handler.dsp_perf_info.xrp_handler << ",";
         *output_file << handler.dsp_perf_info.fik.get_arg_params_context << ",";
         *output_file << handler.dsp_perf_info.fik.process_tiles_total << ",";
@@ -276,6 +291,7 @@ dsp_status DspTracer::write_timeframes_to_file()
         *output_file << handler.dsp_perf_info.fik.ref_tile_setup << ",";
         *output_file << handler.dsp_perf_info.fik.in_dma_config << ",";
         *output_file << handler.dsp_perf_info.fik.out_dma_config << ",";
+        *output_file << handler.dsp_perf_info.fik.optimal_tile_calc << ",";
         *output_file << handler.dsp_perf_info.fik.tiles_count << std::endl;
 
         trace_handlers[i].tid = no_thread_id;

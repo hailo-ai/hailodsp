@@ -20,7 +20,6 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "aligned_uptr.hpp"
 #include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "image_utils.hpp"
@@ -30,12 +29,13 @@
 #include "thread_local_buffer.hpp"
 #include "user_dsp_interface.h"
 
-#include <cstdio>
-#include <memory>
 #include <utils.h>
 
 #define RESOLUTION_WIDTH_HD (1280)
 #define RESOLUTION_HEIGHT_HD (720)
+
+#define CROP_RESIZE_MAX_SCALE (16)
+#define MULTI_CROP_RESIZE_MAX_SCALE (32)
 
 static_assert((int)DSP_NO_LETTERBOX == (int)INTERFACE_NO_LETTERBOX,
               "Interface and internal implementation must have the same number for no letterbox");
@@ -133,6 +133,47 @@ static dsp_status verify_helper_plane_params(dsp_image_properties_t *helper_plan
     return DSP_SUCCESS;
 }
 
+static dsp_status verify_resize_scaling(size_t src_width,
+                                        size_t src_height,
+                                        size_t dst_width,
+                                        size_t dst_height,
+                                        size_t max_scale)
+{
+    if (dst_width * max_scale < src_width) {
+        LOGGER__ERROR(
+            "Error: Resize scale is too large, dst width({}) can be at most {} "
+            "times smaller than src width({})\n",
+            dst_width, max_scale, src_width);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (dst_height * max_scale < src_height) {
+        LOGGER__ERROR(
+            "Error: Resize scale is too large, dst height({}) can be at most {} "
+            "times smaller than src height({})\n",
+            dst_height, max_scale, src_height);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (dst_width > src_width * max_scale) {
+        LOGGER__ERROR(
+            "Error: Resize scale is too large, dst width({}) can be at most {} "
+            "times larger than src width({})\n",
+            dst_width, max_scale, src_width);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (dst_height > src_height * max_scale) {
+        LOGGER__ERROR(
+            "Error: Resize scale is too large, dst height({}) can be at most {} "
+            "times larger than src height({})\n",
+            dst_height, max_scale, src_height);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return DSP_SUCCESS;
+}
+
 dsp_status dsp_crop_and_resize_perf(dsp_device device,
                                     const dsp_resize_params_t *resize_params,
                                     const dsp_roi_t *crop_params,
@@ -166,6 +207,13 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     status = verify_image_properties(resize_params->dst);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Image properties check failed for \"dst\"\n");
+        return status;
+    }
+
+    status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
+                                   resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Image resize scale check failed\n");
         return status;
     }
 
@@ -233,7 +281,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status =
         send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
 
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);
@@ -334,7 +382,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         return DSP_CREATE_BUFFER_FAILED;
     }
 
-    in_data->multi_crop_and_resize_args.multi_resizes_count = 0;
+    in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
     in_data->operation =
         privacy_mask_params ? IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK : IMAGING_OP_MULTI_CROP_AND_RESIZE;
 
@@ -347,7 +395,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
 
     std::vector<command_image_t> images;
-    images.reserve(1 + MAX_MULTI_RESIZE_OUTPUTS * MAX_MULTI_RESIZE_CROPS);
+    images.reserve(1 + MAX_MULTI_RESIZE_OUTPUTS * mutli_crop_resize_params->crop_resize_params_count);
     images.emplace_back(command_image_t{
         .user_api_image = mutli_crop_resize_params->src,
         .dsp_api_image = &in_data->multi_crop_and_resize_args.src,
@@ -356,6 +404,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
 
     for (size_t j = 0; j < mutli_crop_resize_params->crop_resize_params_count; j++) {
         auto crop_and_resize_params = &mutli_crop_resize_params->crop_resize_params[j];
+        auto crop_and_resize_args = &in_data->multi_crop_and_resize_args.multi_resizes[j];
 
         auto status = verify_crop_params(mutli_crop_resize_params->src, crop_and_resize_params->crop);
         if (status != DSP_SUCCESS) {
@@ -392,21 +441,27 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
                 return DSP_INVALID_ARGUMENT;
             }
 
+            status = verify_resize_scaling(cropped_src.width, cropped_src.height, dst_image->width, dst_image->height,
+                                           MULTI_CROP_RESIZE_MAX_SCALE);
+            if (status != DSP_SUCCESS) {
+                LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]\n", j, i);
+                return status;
+            }
+
             images.emplace_back(command_image_t{
                 .user_api_image = dst_image,
-                .dsp_api_image = &in_data->multi_crop_and_resize_args.multi_resizes[j].dst[dst_count],
+                .dsp_api_image = &crop_and_resize_args->dst[dst_count],
                 .access_type = BufferAccessType::Write,
             });
 
             dst_count++;
         }
 
-        in_data->multi_crop_and_resize_args.multi_resizes[j].dst_count = dst_count;
-        in_data->multi_crop_and_resize_args.multi_resizes[j].crop.start_x = crop_and_resize_params->crop->start_x;
-        in_data->multi_crop_and_resize_args.multi_resizes[j].crop.start_y = crop_and_resize_params->crop->start_y;
-        in_data->multi_crop_and_resize_args.multi_resizes[j].crop.end_x = crop_and_resize_params->crop->end_x;
-        in_data->multi_crop_and_resize_args.multi_resizes[j].crop.end_y = crop_and_resize_params->crop->end_y;
-        in_data->multi_crop_and_resize_args.multi_resizes_count++;
+        crop_and_resize_args->dst_count = dst_count;
+        crop_and_resize_args->crop.start_x = crop_and_resize_params->crop->start_x;
+        crop_and_resize_args->crop.start_y = crop_and_resize_params->crop->start_y;
+        crop_and_resize_args->crop.end_x = crop_and_resize_params->crop->end_x;
+        crop_and_resize_args->crop.end_y = crop_and_resize_params->crop->end_y;
     }
 
     if (mutli_crop_resize_params->helper_plane) {
@@ -454,7 +509,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
                           timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
 
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);

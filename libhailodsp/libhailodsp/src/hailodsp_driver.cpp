@@ -187,7 +187,7 @@ dsp_status driver_send_command(int fd,
         .kernel_perf_stats_addr = reinterpret_cast<__u64>(&kernel_perf_stats),
     };
 
-    tracer.update_event_timestamp_now(timeframe, DSP_USER_SPACE_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_USER_SENT_IOCTL_EVENT);
 
     int ret = ioctl(fd, XRP_IOCTL_QUEUE, &ioctl_queue);
     if (ret < 0) {
@@ -197,10 +197,12 @@ dsp_status driver_send_command(int fd,
         return DSP_RUN_COMMAND_FAILED;
     }
 
-    tracer.update_event_timestamp(timeframe, DSP_IOCTL_RECEIVED_EVENT, kernel_perf_stats.ioctl_received);
+    tracer.update_event_timestamp(timeframe, DSP_KERNEL_RECEIVED_IOCTL_EVENT, kernel_perf_stats.kernel_received_ioctl);
+    tracer.update_event_timestamp(timeframe, DSP_WAITING_ON_MUTEX_EVENT, kernel_perf_stats.waiting_on_mutex);
     tracer.update_event_timestamp(timeframe, DSP_MUTEX_ACQUIRED_EVENT, kernel_perf_stats.mutex_acquired);
     tracer.update_event_timestamp(timeframe, DSP_IRQ_SENT_EVENT, kernel_perf_stats.irq_sent);
-    tracer.update_event_timestamp(timeframe, DSP_FW_FINISH_EVENT, kernel_perf_stats.fw_finished);
+    tracer.update_event_timestamp(timeframe, DSP_FW_FINISHED_EVENT, kernel_perf_stats.fw_finished);
+    tracer.update_event_timestamp(timeframe, DSP_MUTEX_RELEASED_EVENT, kernel_perf_stats.mutex_released);
 
     if (out_data_size == 0) {
         tracer.update_perf_info(timeframe, *((perf_info_t *)tracing_out_data));

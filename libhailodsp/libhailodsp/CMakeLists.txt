@@ -23,22 +23,24 @@
 add_library(
   hailodsp SHARED
   src/device.cpp
-  src/resize.cpp
-  src/affine_transform.cpp
   src/send_command.cpp
   src/image_utils.cpp
   src/buffer.cpp
+  src/logger.cpp
+  src/hailodsp_driver.cpp
+  src/utilization.cpp
+  src/dsp_tracer.cpp
+  src/resize.cpp
+  src/affine_transform.cpp
   src/blend.cpp
   src/blur.cpp
   src/convert_format.cpp
   src/dewarp.cpp
-  src/logger.cpp
-  src/hailodsp_driver.cpp
-  src/utilization.cpp
   src/crop.cpp
-  src/dsp_tracer.cpp)
+  src/gaussian.cpp
+  src/laplacian.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.3.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.4)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

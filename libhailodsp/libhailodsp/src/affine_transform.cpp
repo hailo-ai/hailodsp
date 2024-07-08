@@ -147,17 +147,10 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
         });
     }
 
-    BufferList buffer_list;
-    status = add_images_to_buffer_list(buffer_list, images);
-    if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
-        return status;
-    }
-
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
-    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
-                          timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    status =
+        send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
 
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);

@@ -109,7 +109,7 @@ static dsp_status verify_dewarp_params(dsp_device device,
         return DSP_INVALID_ARGUMENT;
     }
 
-    if ((interpolation != INTERPOLATION_TYPE_BILINEAR) && (interpolation != INTERPOLATION_TYPE_BICUBIC)) {
+    if (interpolation != INTERPOLATION_TYPE_BILINEAR) {
         LOGGER__ERROR("Error: Interpolation type ({}) not supported\n", interpolation);
         return DSP_INVALID_ARGUMENT;
     }
@@ -173,7 +173,7 @@ dsp_status dsp_dewarp_perf(dsp_device device,
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
                           timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
 
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);
@@ -391,7 +391,7 @@ dsp_status dsp_rot_dis_dewarp_perf(dsp_device device, dsp_dewarp_angular_dis_par
     auto out_data = make_aligned_uptr<rot_dis_dewarp_response_t>();
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), out_data.get(),
                           sizeof(rot_dis_dewarp_response_t), timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
     tracer.update_perf_info(timeframe, out_data->perf_info);
 
     if (status != DSP_SUCCESS) {

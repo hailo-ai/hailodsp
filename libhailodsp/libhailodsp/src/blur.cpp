@@ -20,7 +20,6 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "aligned_uptr.hpp"
 #include "blur_perf.h"
 #include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
@@ -30,11 +29,7 @@
 #include "thread_local_buffer.hpp"
 #include "user_dsp_interface.h"
 
-#include <cstdint>
-#include <cstdio>
 #include <utils.h>
-
-#define KERNEL_MAX_SIZE (33)
 
 // This function assumes that "image" params is already checked for correctness
 static dsp_status verify_roi_params(const dsp_image_properties_t *image, const dsp_roi_t *roi_params)
@@ -92,8 +87,8 @@ dsp_status dsp_blur_perf(dsp_device device,
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (kernel_size > KERNEL_MAX_SIZE) {
-        LOGGER__ERROR("Error: Kernel size cannot exceed {}\n", KERNEL_MAX_SIZE);
+    if (kernel_size > MAX_FILTER_KERNEL_SIZE) {
+        LOGGER__ERROR("Error: Kernel size cannot exceed {}\n", MAX_FILTER_KERNEL_SIZE);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -146,7 +141,7 @@ dsp_status dsp_blur_perf(dsp_device device,
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status =
         send_command(device, images, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size, timeframe);
-    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISH_EVENT);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
 
     if (perf_info) {
         tracer.update_perf_info(timeframe, *perf_info);
