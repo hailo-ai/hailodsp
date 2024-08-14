@@ -33,19 +33,27 @@
 
 static dsp_status verify_overlay_params(const dsp_image_properties_t *image, const dsp_overlay_properties_t *overlay)
 {
-    if (overlay->x_offset + overlay->overlay.width > image->width) {
-        LOGGER__ERROR(
-            "Error: Overlay x-axis is beyond image dimensions (overlay.x_offset: {}, overlay.width: {}, "
-            "image.width: {})\n",
-            overlay->x_offset, overlay->overlay.width, image->width);
+    if (overlay->x_offset >= (int)image->width) {
+        LOGGER__ERROR("Error: Overlay x_offset ({}) is outside the image width ({})\n", overlay->x_offset,
+                      image->width);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (overlay->y_offset + overlay->overlay.height > image->height) {
-        LOGGER__ERROR(
-            "Error: Overlay y-axis is beyond image dimensions (overlay.y_offset: {}, overlay.height: {}, "
-            "image.height: {})\n",
-            overlay->y_offset, overlay->overlay.height, image->height);
+    if (overlay->y_offset >= (int)image->height) {
+        LOGGER__ERROR("Error: Overlay y_offset ({}) is outside the image height ({})\n", overlay->y_offset,
+                      image->height);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (overlay->x_offset + (int)overlay->overlay.width <= 0) {
+        LOGGER__ERROR("Error: Overlay is outside the image (x_offset={}, overlay_width={})\n", overlay->x_offset,
+                      overlay->overlay.width);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (overlay->y_offset + (int)overlay->overlay.height <= 0) {
+        LOGGER__ERROR("Error: Overlay is outside the image (y_offset={}, overlay_height={})\n", overlay->y_offset,
+                      overlay->overlay.height);
         return DSP_INVALID_ARGUMENT;
     }
 

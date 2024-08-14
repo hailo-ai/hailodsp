@@ -22,7 +22,7 @@
  */
 
 /************************************************************************************
- *  This file is used for defintions that are shared between
+ *  This file is used for definitions that are shared between
  *  user space application and dsp firmware.
  *  Each component has a copy of this header
  * WHEN UPDATING THIS FILE, MAKE SURE TO UPDATE ALL COPIES
@@ -158,7 +158,6 @@ typedef struct {
 
 typedef struct {
     image_properties_t src;
-    image_properties_t helper;
     multi_resize_in_data_t multi_resizes[MAX_MULTI_RESIZE_CROPS];
     uint8_t multi_resizes_count;
     uint8_t interpolation;
@@ -167,8 +166,8 @@ typedef struct {
 
 typedef struct {
     image_properties_t overlay;
-    uint32_t x_offset;
-    uint32_t y_offset;
+    int32_t x_offset;
+    int32_t y_offset;
 } overlay_in_data_t;
 
 typedef struct {

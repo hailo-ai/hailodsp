@@ -376,8 +376,6 @@ typedef struct {
     /** Interpolation method to use.
      *  Only ::INTERPOLATION_TYPE_BILINEAR and ::INTERPOLATION_TYPE_BICUBIC are supported. */
     dsp_interpolation_type_t interpolation;
-    /** A helper buffer used speed performance for some resolutions. Should be HD in size*/
-    dsp_image_properties_t *helper_plane;
 } dsp_multi_crop_resize_params_t;
 
 /** Privacy-Mask parameters */
@@ -491,9 +489,9 @@ typedef struct {
     /** Overlay image to blend. Only ::DSP_IMAGE_FORMAT_A420 and ::DSP_IMAGE_FORMAT_ARGB formats are supported */
     dsp_image_properties_t overlay;
     /** Offset in the horizontal axis to place the blended overlay */
-    size_t x_offset;
+    int x_offset;
     /** Offset in the vertical axis to place the blended overlay */
-    size_t y_offset;
+    int y_offset;
 } dsp_overlay_properties_t;
 
 /**
