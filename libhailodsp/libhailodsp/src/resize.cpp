@@ -185,11 +185,18 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
         return status;
     }
 
-    status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
-                                   resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
-    if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image resize scale check failed\n");
-        return status;
+    // Skip scaling check for FHD to 64x64 in Bilinear or Nearest, as it is a special case that is allowed
+    bool skip_scaling_check = ((cropped_src.width == 1920) && (cropped_src.height == 1080) &&
+                               (resize_params->dst->width == 64) && (resize_params->dst->height == 64) &&
+                               ((resize_params->interpolation == INTERPOLATION_TYPE_NEAREST_NEIGHBOR) ||
+                                (resize_params->interpolation == INTERPOLATION_TYPE_BILINEAR)));
+    if (!skip_scaling_check) {
+        status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
+                                       resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
+        if (status != DSP_SUCCESS) {
+            LOGGER__ERROR("Error: Image resize scale check failed\n");
+            return status;
+        }
     }
 
     if (resize_params->interpolation >= INTERPOLATION_TYPE_COUNT) {
