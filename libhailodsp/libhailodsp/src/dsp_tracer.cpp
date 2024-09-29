@@ -59,6 +59,135 @@ std::string dsp_tasks_strs[] = {
 static_assert(ARRAY_LENGTH(dsp_tasks_strs) == IMAGING_OPS_COUNT,
               "dsp_tasks_strs must have an entry for each imaging operation type");
 
+static struct {
+    std::string header;
+    void (*write_field)(std::ofstream &stream, const task_timeframe_t &task);
+} timeframe_fields[] = {
+    {
+        .header = "TID",
+        .write_field = [](std::ofstream &stream, const task_timeframe_t &task) { stream << task.tid; },
+    },
+    {
+        .header = "Task name",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << dsp_tasks_strs[task.task_type]; },
+    },
+    {
+        .header = "Task started",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.task_started; },
+    },
+    {
+        .header = "User sent IOCTL",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.user_sent_ioctl; },
+    },
+    {
+        .header = "Kernel received IOCTL",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.kernel_received_ioctl; },
+    },
+    {
+        .header = "Waiting on mutex",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.waiting_on_mutex; },
+    },
+    {
+        .header = "Mutex acquired",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.mutex_acquired; },
+    },
+    {
+        .header = "IRQ sent",
+        .write_field = [](std::ofstream &stream, const task_timeframe_t &task) { stream << task.a53_times.irq_sent; },
+    },
+    {
+        .header = "FW finished",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.fw_finished; },
+    },
+    {
+        .header = "Mutex released",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.mutex_released; },
+    },
+    {
+        .header = "Task finished",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.task_finished; },
+    },
+    {
+        .header = "XRP handler",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.xrp_handler; },
+    },
+    {
+        .header = "Get arg params context",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.get_arg_params_context; },
+    },
+    {
+        .header = "Process tiles total",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.process_tiles_total; },
+    },
+    {
+        .header = "Process tiles setup",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.process_tiles_setup; },
+    },
+    {
+        .header = "Kernel",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.kernel; },
+    },
+    {
+        .header = "In DMA wait",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.in_dma_wait; },
+    },
+    {
+        .header = "Out DMA wait",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.out_dma_wait; },
+    },
+    {
+        .header = "Setup updates tiles",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.setup_updates_tiles; },
+    },
+    {
+        .header = "Pad edges",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.pad_edges; },
+    },
+    {
+        .header = "Ref tile setup",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.ref_tile_setup; },
+    },
+    {
+        .header = "In DMA config",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.in_dma_config; },
+    },
+    {
+        .header = "Out dma config",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.out_dma_config; },
+    },
+    {
+        .header = "Optimal Tile Calc",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.optimal_tile_calc; },
+    },
+    {
+        .header = "Tiles_count",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.dsp_perf_info.fik.tiles_count; },
+    },
+};
+
 DspTracer::DspTracer()
 {
     is_tracing_enabled = get_env_var_val_num(DSP_TRACER_ENV_VAR, DSP_TRACER_OFF);
@@ -91,13 +220,10 @@ dsp_status DspTracer::create_output_file()
         is_tracing_enabled = false;
         return DSP_OUT_OF_HOST_MEMORY;
     }
-    *output_file << "TID,Task name,Task started,User sent IOCTL,Kernel received IOCTL,"
-                    "Waiting on mutex,Mutex acquired,IRQ sent,FW finished,"
-                    "Mutex released,Task finished,XRP handler,"
-                    "Get arg params context,Process tiles total,Process tiles setup,"
-                    "Kernel,In DMA wait,Out DMA wait,Setup updates tiles,Pad edges,"
-                    "Ref tile setup,In DMA config,Out dma config,Tiles_count"
-                 << std::endl;
+    for (const auto &data_point : timeframe_fields) {
+        *output_file << data_point.header << ",";
+    }
+    *output_file << std::endl;
     LOGGER__INFO("DspTracer: output file created: {}\n", output_filename);
     return DSP_SUCCESS;
 }
@@ -268,31 +394,11 @@ dsp_status DspTracer::write_timeframes_to_file()
             continue;
         }
 
-        *output_file << handler.tid << ",";
-        *output_file << dsp_tasks_strs[handler.task_type] << ",";
-        *output_file << handler.a53_times.task_started << ",";
-        *output_file << handler.a53_times.user_sent_ioctl << ",";
-        *output_file << handler.a53_times.kernel_received_ioctl << ",";
-        *output_file << handler.a53_times.waiting_on_mutex << ",";
-        *output_file << handler.a53_times.mutex_acquired << ",";
-        *output_file << handler.a53_times.irq_sent << ",";
-        *output_file << handler.a53_times.fw_finished << ",";
-        *output_file << handler.a53_times.mutex_released << ",";
-        *output_file << handler.a53_times.task_finished << ",";
-        *output_file << handler.dsp_perf_info.xrp_handler << ",";
-        *output_file << handler.dsp_perf_info.fik.get_arg_params_context << ",";
-        *output_file << handler.dsp_perf_info.fik.process_tiles_total << ",";
-        *output_file << handler.dsp_perf_info.fik.process_tiles_setup << ",";
-        *output_file << handler.dsp_perf_info.fik.kernel << ",";
-        *output_file << handler.dsp_perf_info.fik.in_dma_wait << ",";
-        *output_file << handler.dsp_perf_info.fik.out_dma_wait << ",";
-        *output_file << handler.dsp_perf_info.fik.setup_updates_tiles << ",";
-        *output_file << handler.dsp_perf_info.fik.pad_edges << ",";
-        *output_file << handler.dsp_perf_info.fik.ref_tile_setup << ",";
-        *output_file << handler.dsp_perf_info.fik.in_dma_config << ",";
-        *output_file << handler.dsp_perf_info.fik.out_dma_config << ",";
-        *output_file << handler.dsp_perf_info.fik.optimal_tile_calc << ",";
-        *output_file << handler.dsp_perf_info.fik.tiles_count << std::endl;
+        for (const auto &data_point : timeframe_fields) {
+            data_point.write_field(*output_file, handler);
+            *output_file << ",";
+        }
+        *output_file << std::endl;
 
         trace_handlers[i].tid = no_thread_id;
         available_indices.push(i);

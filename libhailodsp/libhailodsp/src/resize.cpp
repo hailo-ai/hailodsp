@@ -108,31 +108,6 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
     return DSP_SUCCESS;
 }
 
-static dsp_status verify_helper_plane_params(dsp_image_properties_t *helper_plane)
-{
-    // helper plane is optional
-    if (!helper_plane) {
-        return DSP_SUCCESS;
-    }
-
-    if (helper_plane->planes_count != 1) {
-        LOGGER__ERROR("Error: helper plane should have exactly 1 plane\n");
-        return DSP_INVALID_ARGUMENT;
-    }
-
-    bool is_hd_plane = helper_plane->width == RESOLUTION_WIDTH_HD && helper_plane->height == RESOLUTION_HEIGHT_HD;
-    bool is_hd_rotated_plane =
-        helper_plane->width == RESOLUTION_HEIGHT_HD && helper_plane->height == RESOLUTION_WIDTH_HD;
-
-    if (!is_hd_plane && !is_hd_rotated_plane) {
-        LOGGER__ERROR("Error: helper plane should be HD in size ({} x {})\n", RESOLUTION_WIDTH_HD,
-                      RESOLUTION_HEIGHT_HD);
-        return DSP_INVALID_ARGUMENT;
-    }
-
-    return DSP_SUCCESS;
-}
-
 static dsp_status verify_resize_scaling(size_t src_width,
                                         size_t src_height,
                                         size_t dst_width,
@@ -210,11 +185,18 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
         return status;
     }
 
-    status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
-                                   resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
-    if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image resize scale check failed\n");
-        return status;
+    // Skip scaling check for FHD to 64x64 in Bilinear or Nearest, as it is a special case that is allowed
+    bool skip_scaling_check = ((cropped_src.width == 1920) && (cropped_src.height == 1080) &&
+                               (resize_params->dst->width == 64) && (resize_params->dst->height == 64) &&
+                               ((resize_params->interpolation == INTERPOLATION_TYPE_NEAREST_NEIGHBOR) ||
+                                (resize_params->interpolation == INTERPOLATION_TYPE_BILINEAR)));
+    if (!skip_scaling_check) {
+        status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
+                                       resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
+        if (status != DSP_SUCCESS) {
+            LOGGER__ERROR("Error: Image resize scale check failed\n");
+            return status;
+        }
     }
 
     if (resize_params->interpolation >= INTERPOLATION_TYPE_COUNT) {
@@ -364,12 +346,6 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         return status;
     }
 
-    status = verify_helper_plane_params(mutli_crop_resize_params->helper_plane);
-    if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: helper plane parameters check failed\n");
-        return status;
-    }
-
     if (mutli_crop_resize_params->src->format != DSP_IMAGE_FORMAT_NV12) {
         LOGGER__ERROR("Error: Src format ({}) is not supported\n",
                       format_arg_to_string(mutli_crop_resize_params->src->format));
@@ -462,18 +438,6 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         crop_and_resize_args->crop.start_y = crop_and_resize_params->crop->start_y;
         crop_and_resize_args->crop.end_x = crop_and_resize_params->crop->end_x;
         crop_and_resize_args->crop.end_y = crop_and_resize_params->crop->end_y;
-    }
-
-    if (mutli_crop_resize_params->helper_plane) {
-        in_data->multi_crop_and_resize_args.helper.width = mutli_crop_resize_params->helper_plane->width;
-        in_data->multi_crop_and_resize_args.helper.height = mutli_crop_resize_params->helper_plane->height;
-        images.emplace_back(command_image_t{
-            .user_api_image = mutli_crop_resize_params->helper_plane,
-            .dsp_api_image = &in_data->multi_crop_and_resize_args.helper,
-            .access_type = BufferAccessType::ReadWrite,
-        });
-    } else {
-        in_data->multi_crop_and_resize_args.helper.planes_count = 0;
     }
 
     BufferList buffer_list;
