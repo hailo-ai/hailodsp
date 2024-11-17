@@ -68,7 +68,6 @@ class Logger {
         else
             return default_level;
     }
-
     std::shared_ptr<spdlog::logger> get_logger() { return m_logger; }
 
    private:

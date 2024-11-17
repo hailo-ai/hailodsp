@@ -59,9 +59,13 @@ dsp_status dsp_convert_format_perf(dsp_device device,
 
     // Current supported format conversions:
     // RGB -> NV12
+    // BGR -> NV12
     // NV12 -> RGB
+    // NV12 -> BGR
     if (!((src->format == DSP_IMAGE_FORMAT_RGB && dst->format == DSP_IMAGE_FORMAT_NV12) ||
-          (src->format == DSP_IMAGE_FORMAT_NV12 && dst->format == DSP_IMAGE_FORMAT_RGB))) {
+          (src->format == DSP_IMAGE_FORMAT_BGR && dst->format == DSP_IMAGE_FORMAT_NV12) ||
+          (src->format == DSP_IMAGE_FORMAT_NV12 && dst->format == DSP_IMAGE_FORMAT_RGB) ||
+          (src->format == DSP_IMAGE_FORMAT_NV12 && dst->format == DSP_IMAGE_FORMAT_BGR))) {
         LOGGER__ERROR("Error: Conversion from src {} to dst {} isn't supported\n", format_arg_to_string(src->format),
                       format_arg_to_string(dst->format));
         return DSP_INVALID_ARGUMENT;

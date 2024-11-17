@@ -112,7 +112,7 @@ static dsp_image_properties_t *generic_alloc_image_dmabuf(struct image_arguments
             goto l_err;
         }
 
-        ret_planes[i].fd = alloc_data.fd;
+        ret_planes[i].fd = (int)alloc_data.fd;
         ret_planes[i].bytesused = planes[i].bytesused;
         ret_planes[i].bytesperline = planes[i].bytesperline;
     }
@@ -397,6 +397,7 @@ dsp_image_properties_t *alloc_image(dsp_device device, struct image_arguments *a
         case DSP_IMAGE_FORMAT_GRAY16:
             return alloc_gray16_image(device, args);
         case DSP_IMAGE_FORMAT_RGB:
+        case DSP_IMAGE_FORMAT_BGR:
             return alloc_rgb_image(device, args);
         case DSP_IMAGE_FORMAT_ARGB:
             return alloc_argb_image(device, args);

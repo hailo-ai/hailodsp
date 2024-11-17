@@ -54,6 +54,8 @@ std::string dsp_tasks_strs[] = {
     [IMAGING_OP_MULTI_CROP] = "Multi crop",
     [IMAGING_OP_MULTI_GAUSSIAN] = "Multi gaussian",
     [IMAGING_OP_MULTI_LAPLACIAN] = "Multi laplacian",
+    [IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE] = "Telescopic multi crop and resize",
+    [IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE_PRIVACY_MASK] = "Telescopic multi crop and resize privacy mask",
 };
 
 static_assert(ARRAY_LENGTH(dsp_tasks_strs) == IMAGING_OPS_COUNT,

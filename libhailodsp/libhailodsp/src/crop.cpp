@@ -69,6 +69,7 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
         if (single_crop_params->src->format != DSP_IMAGE_FORMAT_NV12 &&
             single_crop_params->src->format != DSP_IMAGE_FORMAT_GRAY8 &&
             single_crop_params->src->format != DSP_IMAGE_FORMAT_RGB &&
+            single_crop_params->src->format != DSP_IMAGE_FORMAT_BGR &&
             single_crop_params->src->format != DSP_IMAGE_FORMAT_A420 &&
             single_crop_params->src->format != DSP_IMAGE_FORMAT_ARGB) {
             LOGGER__ERROR("Error: Src [{}] format ({}) is not supported\n", i,

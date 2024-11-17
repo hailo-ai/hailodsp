@@ -15,8 +15,9 @@ add_compile_options(-Wall -Werror -Wextra
                     $<$<COMPILE_LANGUAGE:CXX>:-Wno-missing-field-initializers>)
 
 add_subdirectory(libhailodsp)
+add_subdirectory(tools)
 if(DSP_BUILD_CLI)
-  add_subdirectory(cli)
+  add_subdirectory(internal_cli)
 endif()
 if(DSP_BUILD_TESTS)
   add_subdirectory(tests)

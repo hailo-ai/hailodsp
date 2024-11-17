@@ -40,7 +40,7 @@ dsp_status dsp_create_device(dsp_device *device)
         goto l_exit;
     }
 
-    local_device = new (std::nothrow) _dsp_device;
+    local_device = new (std::nothrow) dsp_device_internal;
     if (!local_device) {
         LOGGER__ERROR("Failed to allocate memory for device");
         status = DSP_OUT_OF_HOST_MEMORY;

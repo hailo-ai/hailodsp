@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 Cadence Design Systems Inc.
+ * Copyright (c) 2017-2024 Hailo Technologies Ltd. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -27,16 +28,16 @@
 #include <stdint.h>
 
 #ifndef HAVE___U8
-typedef uint8_t __u8;
+typedef uint8_t __u8; // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 #ifndef HAVE___U32
-typedef uint32_t __u32;
+typedef uint32_t __u32; // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 #ifndef HAVE___S32
-typedef int32_t __s32;
+typedef int32_t __s32; // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 #ifndef HAVE___U64
-typedef uint64_t __u64;
+typedef uint64_t __u64; // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 
 #endif

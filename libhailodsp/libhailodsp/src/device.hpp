@@ -23,6 +23,6 @@
 
 #pragma once
 
-struct _dsp_device {
+struct dsp_device_internal {
     int fd;
 };

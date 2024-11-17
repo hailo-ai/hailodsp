@@ -120,6 +120,16 @@ typedef enum {
     /** Grayscale format. One plane, each pixel is 16bit */
     DSP_IMAGE_FORMAT_GRAY16,
 
+    /**
+     * BGR (packed) format. One plane, each color component is 8bit \n
+     * @code
+     * +--+--+--+ +--+--+--+
+     * |B0|G0|R0| |B1|G1|R1|
+     * +--+--+--+ +--+--+--+
+     * @endcode
+     */
+    DSP_IMAGE_FORMAT_BGR,
+
     /* Must be last */
     DSP_IMAGE_FORMAT_COUNT,
     /** Max enum value to maintain ABI Integrity */
@@ -243,7 +253,7 @@ typedef struct {
  */
 
 /** Opaque pointer to dsp_device object. The device object holds state and data required to issue commands */
-typedef struct _dsp_device *dsp_device;
+typedef struct dsp_device_internal *dsp_device;
 
 /**
  * Create new dsp_device object
@@ -409,8 +419,9 @@ typedef struct {
 /**
  * @brief Perform resize operation
  * @details The function resizes the image down to or up to the specified size
- *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
- *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical.
+ *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB,
+ *          ::DSP_IMAGE_FORMAT_BGR and ::DSP_IMAGE_FORMAT_NV12.
+ *          The formats of the src image and dst image must be identical.
  *          The destination image can only be upscaled or downscaled up to a factor of 16.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
@@ -421,8 +432,9 @@ dsp_status dsp_resize(dsp_device device, const dsp_resize_params_t *resize_param
 /**
  * @brief Perform crop&resize operation
  * @details Perform crop operation on an image and then resize the cropped image to the specified size.
- *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
- *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical.
+ *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB,
+ *          ::DSP_IMAGE_FORMAT_BGR and ::DSP_IMAGE_FORMAT_NV12.
+ *          The formats of the src image and dst image must be identical.
  *          The destination image can only be upscaled or downscaled up to a factor of 16.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
@@ -437,8 +449,9 @@ dsp_status dsp_crop_and_resize(dsp_device device,
  * @brief Perform letterbox crop&resize operation
  * @details Perform crop operation on an image and then resize the cropped image to the specified size.
  *          The resized image keeps the aspect ratio of the src image.
- *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB and
- *          ::DSP_IMAGE_FORMAT_NV12. The formats of the src image and dst image must be identical.
+ *          Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB,
+ *          ::DSP_IMAGE_FORMAT_BGR and ::DSP_IMAGE_FORMAT_NV12.
+ *          The formats of the src image and dst image must be identical.
  *          The destination image can only be upscaled or downscaled up to a factor of 16.
  * @param device A ::dsp_device object
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
@@ -465,9 +478,9 @@ dsp_status dsp_multi_crop_and_resize(dsp_device device, const dsp_multi_crop_res
 
 /**
  * @brief Apply a privacy mask and perform multi crop&resize operation
- * @details Same as ::dsp_multi_crop_and_resize, but before performing the crops and resizes,
- *          a privacy mask is applied to the source image (the image is unmodified)
- *          Every output preserves the privacy mask.
+ * @details Same as ::dsp_multi_crop_and_resize, but with an additional privacy mask applied to all the output images.
+ *          Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12.
+ *          The formats of the src image and dst image must be identical.
  *          The destination image can only be upscaled or downscaled up to a factor of 32.
  * @param device A ::dsp_device object
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
@@ -477,6 +490,37 @@ dsp_status dsp_multi_crop_and_resize(dsp_device device, const dsp_multi_crop_res
 dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
                                                   const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
                                                   const dsp_privacy_mask_t *privacy_mask_params);
+
+/**
+ * @brief Perform telescopic multi crop and multi resize operation
+ * @details Perform several crop operations on an image and then perform telescopic resize each cropped image to the
+ *          specified sizes.
+ *          Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12.
+ *          The formats of the src image and dst image must be identical.
+ *          The destination image can only be upscaled or downscaled up to a factor of 32.
+ * @param device A ::dsp_device object
+ * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_telescopic_multi_crop_and_resize(dsp_device device,
+                                                const dsp_multi_crop_resize_params_t *mutli_crop_resize_params);
+
+/**
+ * @brief Apply a privacy mask and perform telescopic multi crop&resize operation
+ * @details Same as ::dsp_telescopic_multi_crop_and_resize, but with an additional privacy mask applied to all the
+ *          output images.
+ *          Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12.
+ *          The formats of the src image and dst image must be identical.
+ *          The destination image can only be upscaled or downscaled up to a factor of 32.
+ * @param device A ::dsp_device object
+ * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
+ * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
+    dsp_device device,
+    const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
+    const dsp_privacy_mask_t *privacy_mask_params);
 
 /**
  *  @}
@@ -553,7 +597,9 @@ dsp_status dsp_blur(dsp_device device,
  * @details The function converts an image of a specified format to an image of another format
  *          Supported format conversions are:
  *          From ::DSP_IMAGE_FORMAT_RGB to ::DSP_IMAGE_FORMAT_NV12
+ *          From ::DSP_IMAGE_FORMAT_BGR to ::DSP_IMAGE_FORMAT_NV12
  *          From ::DSP_IMAGE_FORMAT_NV12 to ::DSP_IMAGE_FORMAT_RGB
+ *          From ::DSP_IMAGE_FORMAT_NV12 to ::DSP_IMAGE_FORMAT_BGR
  *          The sizes of the src image and dst image must be identical
  * @param device A ::dsp_device object
  * @param src Source image metadata - holds the image to convert
@@ -823,8 +869,8 @@ typedef struct {
  * @brief Perform crop and copy operation
  * @details Perform copy of a region of interest (ROI) from the source image to a region of interest in the destination
  *          image. Supported formats of the operation are ::DSP_IMAGE_FORMAT_GRAY8, ::DSP_IMAGE_FORMAT_RGB,
- *          ::DSP_IMAGE_FORMAT_NV12, ::DSP_IMAGE_FORMAT_A420 and ::DSP_IMAGE_FORMAT_ARGB. The formats of the src image
- *          and dst image must be identical.
+ *          ::DSP_IMAGE_FORMAT_BGR, ::DSP_IMAGE_FORMAT_NV12, ::DSP_IMAGE_FORMAT_A420 and ::DSP_IMAGE_FORMAT_ARGB.
+ *          The formats of the src image and dst image must be identical.
  * @param device A ::dsp_device object
  * @param crop_params Pointer to ::dsp_crop_params_t with the required parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error

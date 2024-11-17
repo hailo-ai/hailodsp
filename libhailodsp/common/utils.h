@@ -29,27 +29,29 @@ extern "C" {
 
 #include <hailo/hailodsp.h>
 
+#include <assert.h>
+
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #define ROUND_UP(N, S) ((((N) + (S)-1) / (S)) * (S))
 
-__attribute__((unused)) static inline const char *format_arg_to_string(int format)
+static const char *format_names[] = {
+    [DSP_IMAGE_FORMAT_GRAY8] = "gray8", [DSP_IMAGE_FORMAT_RGB] = "rgb",   [DSP_IMAGE_FORMAT_NV12] = "nv12",
+    [DSP_IMAGE_FORMAT_A420] = "a420",   [DSP_IMAGE_FORMAT_ARGB] = "argb", [DSP_IMAGE_FORMAT_GRAY16] = "gray16",
+    [DSP_IMAGE_FORMAT_BGR] = "bgr",
+};
+
+static_assert(ARRAY_LENGTH(format_names) == DSP_IMAGE_FORMAT_COUNT,
+              "format_names length must be identical to dsp_image_format_t count");
+
+__attribute__((unused)) static inline const char *format_arg_to_string(dsp_image_format_t format)
 {
-    switch (format) {
-        case DSP_IMAGE_FORMAT_GRAY8:
-            return "gray8";
-        case DSP_IMAGE_FORMAT_RGB:
-            return "rgb";
-        case DSP_IMAGE_FORMAT_NV12:
-            return "nv12";
-        case DSP_IMAGE_FORMAT_A420:
-            return "a420";
-        case DSP_IMAGE_FORMAT_ARGB:
-            return "argb";
-        default:
-            return "unknown";
+    if (format < ARRAY_LENGTH(format_names)) {
+        return format_names[format];
+    } else {
+        return "unknown";
     }
 }
 

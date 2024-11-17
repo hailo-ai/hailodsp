@@ -28,8 +28,7 @@
  * WHEN UPDATING THIS FILE, MAKE SURE TO UPDATE ALL COPIES
  ************************************************************************************/
 
-#ifndef _USER_DSP_INTERFACE_H
-#define _USER_DSP_INTERFACE_H
+#pragma once
 
 #include <stdint.h>
 
@@ -68,6 +67,8 @@ typedef enum {
     IMAGING_OP_MULTI_CROP,
     IMAGING_OP_MULTI_GAUSSIAN,
     IMAGING_OP_MULTI_LAPLACIAN,
+    IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE,
+    IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE_PRIVACY_MASK,
     IMAGING_OPS_COUNT,
 } imaging_operation_t;
 
@@ -78,6 +79,9 @@ enum dsp_interface_image_format {
     INTERFACE_IMAGE_FORMAT_A420,
     INTERFACE_IMAGE_FORMAT_ARGB,
     INTERFACE_IMAGE_FORMAT_GRAY16,
+    INTERFACE_IMAGE_FORMAT_BGR,
+
+    INTERFACE_IMAGE_FORMAT_COUNT
 };
 
 /** Letterbox aligment types */
@@ -360,5 +364,3 @@ typedef struct {
     uint32_t pattern[DDR_TRAFFIC_MAX_PATTERN_SIZE];
     uint32_t pattern_size;
 } ddr_traffic_request_t;
-
-#endif //_USER_DSP_INTERFACE_H

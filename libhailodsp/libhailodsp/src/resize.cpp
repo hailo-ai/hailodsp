@@ -31,9 +31,6 @@
 
 #include <utils.h>
 
-#define RESOLUTION_WIDTH_HD (1280)
-#define RESOLUTION_HEIGHT_HD (720)
-
 #define CROP_RESIZE_MAX_SCALE (16)
 #define MULTI_CROP_RESIZE_MAX_SCALE (32)
 
@@ -204,7 +201,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
         return DSP_INVALID_ARGUMENT;
     }
 
-    // Only same format for src and dst is currently supported and only GRAY8, RGB or NV12
+    // Only same format for src and dst is currently supported and only GRAY8, RGB, BGR or NV12
     if (resize_params->src->format != resize_params->dst->format) {
         LOGGER__ERROR("Error: The src and dst formats are not the same\n");
         return DSP_INVALID_ARGUMENT;
@@ -213,6 +210,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     switch (resize_params->src->format) {
         case DSP_IMAGE_FORMAT_GRAY8:
         case DSP_IMAGE_FORMAT_RGB:
+        case DSP_IMAGE_FORMAT_BGR:
         case DSP_IMAGE_FORMAT_NV12:
             break;
 
@@ -496,4 +494,228 @@ dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
                                                   const dsp_privacy_mask_t *privacy_mask_params)
 {
     return dsp_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL);
+}
+
+/* Telescopic is only valid if each resolution is less than or equal to the previous one in both width and height */
+dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
+{
+    const dsp_image_properties_t *prev_resolution = nullptr;
+    int i = 0;
+
+    /* Find the first resolution in the list */
+    for (i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
+        if (params->dst[i] != nullptr) {
+            prev_resolution = params->dst[i];
+            break;
+        }
+    }
+
+    if (prev_resolution == nullptr) {
+        LOGGER__ERROR("Error: At least one image destination must be provided\n");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    /* Check that each resolution is less than or equal to the previous one */
+    for (; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
+        if (params->dst[i] == nullptr) {
+            continue;
+        }
+
+        if (params->dst[i]->width > prev_resolution->width) {
+            LOGGER__ERROR("Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})\n",
+                          i, params->dst[i]->width, prev_resolution->width);
+            return DSP_INVALID_ARGUMENT;
+        }
+
+        if (params->dst[i]->height > prev_resolution->height) {
+            LOGGER__ERROR(
+                "Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})\n", i,
+                params->dst[i]->height, prev_resolution->height);
+            return DSP_INVALID_ARGUMENT;
+        }
+
+        prev_resolution = params->dst[i];
+    }
+
+    return DSP_SUCCESS;
+}
+
+dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
+                                                     const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
+                                                     const dsp_privacy_mask_t *privacy_mask_params,
+                                                     perf_info_t *perf_info)
+{
+    if ((!device) || (!mutli_crop_resize_params)) {
+        LOGGER__ERROR("Error: NULL argument (device={}, mutli_crop_resize_params={})\n", fmt::ptr(device),
+                      fmt::ptr(mutli_crop_resize_params));
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto imaging_op = privacy_mask_params ? IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE_PRIVACY_MASK
+                                          : IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE;
+
+    auto &tracer = DspTracer::get_instance();
+    task_timeframe_t *timeframe = tracer.start_tracing(imaging_op);
+
+    auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Privacy mask parameters check failed\n");
+        return status;
+    }
+
+    if (mutli_crop_resize_params->src->format != DSP_IMAGE_FORMAT_NV12) {
+        LOGGER__ERROR("Error: Src format ({}) is not supported\n",
+                      format_arg_to_string(mutli_crop_resize_params->src->format));
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (mutli_crop_resize_params->interpolation != INTERPOLATION_TYPE_BILINEAR) {
+        LOGGER__ERROR("Error: interpolation type ({}) not supported\n", mutli_crop_resize_params->interpolation);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto in_data = ThreadLocalBuffer<imaging_request_t>::get();
+    if (!in_data) {
+        LOGGER__ERROR("Failed to allocate in_data");
+        return DSP_CREATE_BUFFER_FAILED;
+    }
+
+    in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
+    in_data->operation = imaging_op;
+    in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
+
+    std::vector<command_image_t> images;
+    images.reserve(1 + MAX_MULTI_RESIZE_OUTPUTS * mutli_crop_resize_params->crop_resize_params_count);
+    images.emplace_back(command_image_t{
+        .user_api_image = mutli_crop_resize_params->src,
+        .dsp_api_image = &in_data->multi_crop_and_resize_args.src,
+        .access_type = BufferAccessType::Read,
+    });
+
+    for (size_t j = 0; j < mutli_crop_resize_params->crop_resize_params_count; j++) {
+        auto crop_and_resize_params = &mutli_crop_resize_params->crop_resize_params[j];
+        auto crop_and_resize_args = &in_data->multi_crop_and_resize_args.multi_resizes[j];
+
+        auto status = verify_crop_params(mutli_crop_resize_params->src, crop_and_resize_params->crop);
+        if (status != DSP_SUCCESS) {
+            LOGGER__ERROR("Error: Crop parameters check failed for crop&resize[{}]\n", j);
+            return status;
+        }
+
+        dsp_image_properties_t cropped_src = *mutli_crop_resize_params->src;
+        cropped_src.width = crop_and_resize_params->crop->end_x - crop_and_resize_params->crop->start_x;
+        cropped_src.height = crop_and_resize_params->crop->end_y - crop_and_resize_params->crop->start_y;
+
+        status = verify_image_properties(&cropped_src);
+        if (status != DSP_SUCCESS) {
+            LOGGER__ERROR("Error: Image properties check failed for src[{}] (after crop)\n", j);
+            return status;
+        }
+
+        status = verify_telescopic_resolutions(crop_and_resize_params);
+        if (status != DSP_SUCCESS) {
+            LOGGER__ERROR("Error: Telescopic resolutions check failed for crop&resize[{}]\n", j);
+            return status;
+        }
+
+        size_t dst_count = 0;
+        for (int i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; ++i) {
+            auto dst_image = crop_and_resize_params->dst[i];
+            if (dst_image == NULL) {
+                continue;
+            }
+
+            status = verify_image_properties(dst_image);
+            if (status != DSP_SUCCESS) {
+                LOGGER__ERROR("Error: Image properties check failed for dst[{}, {}]\n", j, i);
+                return status;
+            }
+
+            if (dst_image->format != DSP_IMAGE_FORMAT_NV12) {
+                LOGGER__ERROR("Error: Dst[{} {}] format ({}) is not supported\n", j, i,
+                              format_arg_to_string(dst_image->format));
+                return DSP_INVALID_ARGUMENT;
+            }
+
+            status = verify_resize_scaling(cropped_src.width, cropped_src.height, dst_image->width, dst_image->height,
+                                           MULTI_CROP_RESIZE_MAX_SCALE);
+            if (status != DSP_SUCCESS) {
+                LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]\n", j, i);
+                return status;
+            }
+
+            images.emplace_back(command_image_t{
+                .user_api_image = dst_image,
+                .dsp_api_image = &crop_and_resize_args->dst[dst_count],
+                .access_type = BufferAccessType::Write,
+            });
+
+            dst_count++;
+        }
+
+        crop_and_resize_args->dst_count = dst_count;
+        crop_and_resize_args->crop.start_x = crop_and_resize_params->crop->start_x;
+        crop_and_resize_args->crop.start_y = crop_and_resize_params->crop->start_y;
+        crop_and_resize_args->crop.end_x = crop_and_resize_params->crop->end_x;
+        crop_and_resize_args->crop.end_y = crop_and_resize_params->crop->end_y;
+    }
+
+    BufferList buffer_list;
+    status = add_images_to_buffer_list(buffer_list, images);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        return status;
+    }
+
+    if (privacy_mask_params) {
+        const size_t bitmask_width =
+            ceil(mutli_crop_resize_params->src->width / (double)(PRIVACY_MASK_QUANTIZATION * 8));
+        const size_t bitmask_stride = ROUND_UP(bitmask_width, 8);
+        const size_t bitmask_height = ceil(mutli_crop_resize_params->src->height / (double)PRIVACY_MASK_QUANTIZATION);
+        in_data->multi_crop_and_resize_args.privacy_mask.bitmask.line_stride = bitmask_stride;
+        in_data->multi_crop_and_resize_args.privacy_mask.bitmask.plane_size = bitmask_stride * bitmask_height;
+        in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
+            privacy_mask_params->bitmask, bitmask_stride * bitmask_height, BufferAccessType::Read);
+
+        in_data->multi_crop_and_resize_args.privacy_mask.y_color = privacy_mask_params->y_color;
+        in_data->multi_crop_and_resize_args.privacy_mask.u_color = privacy_mask_params->u_color;
+        in_data->multi_crop_and_resize_args.privacy_mask.v_color = privacy_mask_params->v_color;
+
+        in_data->multi_crop_and_resize_args.privacy_mask.rois_count = privacy_mask_params->rois_count;
+        for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].start_x = privacy_mask_params->rois[i].start_x;
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].start_y = privacy_mask_params->rois[i].start_y;
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_x = privacy_mask_params->rois[i].end_x;
+            in_data->multi_crop_and_resize_args.privacy_mask.rois[i].end_y = privacy_mask_params->rois[i].end_y;
+        }
+    }
+
+    size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
+    status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
+                          timeframe);
+    tracer.update_event_timestamp_now(timeframe, DSP_TASK_FINISHED_EVENT);
+
+    if (perf_info) {
+        tracer.update_perf_info(timeframe, *perf_info);
+    }
+
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
+    }
+
+    return status;
+}
+
+dsp_status dsp_telescopic_multi_crop_and_resize(dsp_device device,
+                                                const dsp_multi_crop_resize_params_t *mutli_crop_resize_params)
+{
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, NULL, NULL);
+}
+
+dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
+    dsp_device device,
+    const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
+    const dsp_privacy_mask_t *privacy_mask_params)
+{
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL);
 }

@@ -28,29 +28,22 @@
 #include <cmath>
 #include <utils.h>
 
-static dsp_status convert_image_format(dsp_image_format_t format, enum dsp_interface_image_format *interface_format)
-{
-    dsp_status status = DSP_UNINITIALIZED;
-
-    enum dsp_interface_image_format format_convert[] = {
-        [DSP_IMAGE_FORMAT_GRAY8] = INTERFACE_IMAGE_FORMAT_GRAY8,
-        [DSP_IMAGE_FORMAT_RGB] = INTERFACE_IMAGE_FORMAT_RGB,
-        [DSP_IMAGE_FORMAT_NV12] = INTERFACE_IMAGE_FORMAT_NV12,
-        [DSP_IMAGE_FORMAT_A420] = INTERFACE_IMAGE_FORMAT_A420,
-        [DSP_IMAGE_FORMAT_ARGB] = INTERFACE_IMAGE_FORMAT_ARGB,
-        [DSP_IMAGE_FORMAT_GRAY16] = INTERFACE_IMAGE_FORMAT_GRAY16,
-    };
-
-    if ((size_t)format >= ARRAY_LENGTH(format_convert)) {
-        status = DSP_INVALID_ARGUMENT;
-        return status;
-    }
-
-    *interface_format = format_convert[(size_t)format];
-    status = DSP_SUCCESS;
-
-    return status;
-}
+static_assert((int)INTERFACE_IMAGE_FORMAT_GRAY8 == (int)DSP_IMAGE_FORMAT_GRAY8,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_RGB == (int)DSP_IMAGE_FORMAT_RGB,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_NV12 == (int)DSP_IMAGE_FORMAT_NV12,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_A420 == (int)DSP_IMAGE_FORMAT_A420,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_ARGB == (int)DSP_IMAGE_FORMAT_ARGB,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_GRAY16 == (int)DSP_IMAGE_FORMAT_GRAY16,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_BGR == (int)DSP_IMAGE_FORMAT_BGR,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
+static_assert((int)INTERFACE_IMAGE_FORMAT_COUNT == (int)DSP_IMAGE_FORMAT_COUNT,
+              "dsp_interface_image_format must be identical to dsp_image_format_t");
 
 dsp_status convert_image(const dsp_image_properties_t *img_src, image_properties_t *img_dst)
 {
@@ -61,11 +54,7 @@ dsp_status convert_image(const dsp_image_properties_t *img_src, image_properties
         return status;
     }
 
-    status = convert_image_format(img_src->format, (dsp_interface_image_format *)&img_dst->format);
-    if (status != DSP_SUCCESS) {
-        return status;
-    }
-
+    img_dst->format = (dsp_interface_image_format)img_src->format;
     img_dst->width = img_src->width;
     img_dst->height = img_src->height;
     img_dst->planes_count = img_src->planes_count;
@@ -164,6 +153,24 @@ static dsp_status verify_rgb_image(const dsp_image_properties_t *image)
 
     if (image->planes_count != 1) {
         LOGGER__ERROR("Error: RGB format should contain 1 plane\n");
+        status = DSP_INVALID_ARGUMENT;
+        return status;
+    }
+
+    status = verify_plane(image, &image->planes[0], 3, 1, 1, 0);
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    return status;
+}
+
+static dsp_status verify_bgr_image(const dsp_image_properties_t *image)
+{
+    dsp_status status = DSP_UNINITIALIZED;
+
+    if (image->planes_count != 1) {
+        LOGGER__ERROR("Error: BGR format should contain 1 plane\n");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -315,6 +322,9 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
             break;
         case DSP_IMAGE_FORMAT_RGB:
             status = verify_rgb_image(image);
+            break;
+        case DSP_IMAGE_FORMAT_BGR:
+            status = verify_bgr_image(image);
             break;
         case DSP_IMAGE_FORMAT_ARGB:
             status = verify_argb_image(image);
