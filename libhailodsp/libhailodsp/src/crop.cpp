@@ -40,7 +40,7 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
     task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_MULTI_CROP);
 
     if ((!device) || (!multi_crop_params)) {
-        LOGGER__ERROR("Error: NULL argument (device={}, multi_crop_params={})\n", fmt::ptr(device),
+        LOGGER__ERROR("Error: NULL argument (device={}, multi_crop_params={})", fmt::ptr(device),
                       fmt::ptr(multi_crop_params));
         return DSP_INVALID_ARGUMENT;
     }
@@ -61,7 +61,7 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
         auto single_crop_params = &multi_crop_params[i];
 
         if (!single_crop_params->src || !single_crop_params->dst) {
-            LOGGER__ERROR("Error: NULL argument at index {} (src={}, dst={})\n", i, fmt::ptr(single_crop_params->src),
+            LOGGER__ERROR("Error: NULL argument at index {} (src={}, dst={})", i, fmt::ptr(single_crop_params->src),
                           fmt::ptr(single_crop_params->dst));
             return DSP_INVALID_ARGUMENT;
         }
@@ -72,20 +72,20 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
             single_crop_params->src->format != DSP_IMAGE_FORMAT_BGR &&
             single_crop_params->src->format != DSP_IMAGE_FORMAT_A420 &&
             single_crop_params->src->format != DSP_IMAGE_FORMAT_ARGB) {
-            LOGGER__ERROR("Error: Src [{}] format ({}) is not supported\n", i,
+            LOGGER__ERROR("Error: Src [{}] format ({}) is not supported", i,
                           format_arg_to_string(single_crop_params->src->format));
             return DSP_INVALID_ARGUMENT;
         }
 
         auto status = verify_crop_params(single_crop_params->src, &single_crop_params->src_roi);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Src crop parameters check failed for crop[{}]\n", i);
+            LOGGER__ERROR("Error: Src crop parameters check failed for crop[{}]", i);
             return status;
         }
 
         status = verify_crop_params(single_crop_params->dst, &single_crop_params->dst_roi);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Dst crop parameters check failed for crop[{}]\n", i);
+            LOGGER__ERROR("Error: Dst crop parameters check failed for crop[{}]", i);
             return status;
         }
 
@@ -95,7 +95,7 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
 
         status = verify_image_properties(&cropped_src);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Image properties check failed for src[{}] (after crop)\n", i);
+            LOGGER__ERROR("Error: Image properties check failed for src[{}] (after crop)", i);
             return status;
         }
 
@@ -105,17 +105,17 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
 
         status = verify_image_properties(&cropped_dst);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Image properties check failed for dst[{}] (after crop)\n", i);
+            LOGGER__ERROR("Error: Image properties check failed for dst[{}] (after crop)", i);
             return status;
         }
 
         if ((cropped_src.width != cropped_dst.width) || (cropped_src.height != cropped_dst.height)) {
-            LOGGER__ERROR("Error: Src and Dst ROI sizes are different for crop[{}]\n", i);
+            LOGGER__ERROR("Error: Src and Dst ROI sizes are different for crop[{}]", i);
             return DSP_INVALID_ARGUMENT;
         }
 
         if (single_crop_params->dst->format != multi_crop_params->src->format) {
-            LOGGER__ERROR("Error: Dst format ({}) is not the same as src format ({}) on crop {}\n",
+            LOGGER__ERROR("Error: Dst format ({}) is not the same as src format ({}) on crop {}",
                           format_arg_to_string(single_crop_params->dst->format),
                           format_arg_to_string(multi_crop_params->src->format), i);
             return DSP_INVALID_ARGUMENT;
@@ -152,7 +152,7 @@ dsp_status dsp_multi_crop_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}", status);
         return status;
     }
 

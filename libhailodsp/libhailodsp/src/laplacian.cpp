@@ -40,7 +40,7 @@ dsp_status dsp_multi_laplacian_perf(dsp_device device,
                                     perf_info_t *perf_info)
 {
     if ((!device) || (!params)) {
-        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, params={})\n", fmt::ptr(device),
+        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, params={})", fmt::ptr(device),
                       fmt::ptr(params));
         return DSP_INVALID_ARGUMENT;
     }
@@ -110,7 +110,7 @@ dsp_status dsp_multi_laplacian_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing laplacian operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing laplacian operation. Error code: {}", status);
     }
 
     return status;

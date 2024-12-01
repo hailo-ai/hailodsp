@@ -34,25 +34,24 @@
 static dsp_status verify_overlay_params(const dsp_image_properties_t *image, const dsp_overlay_properties_t *overlay)
 {
     if (overlay->x_offset >= (int)image->width) {
-        LOGGER__ERROR("Error: Overlay x_offset ({}) is outside the image width ({})\n", overlay->x_offset,
-                      image->width);
+        LOGGER__ERROR("Error: Overlay x_offset ({}) is outside the image width ({})", overlay->x_offset, image->width);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (overlay->y_offset >= (int)image->height) {
-        LOGGER__ERROR("Error: Overlay y_offset ({}) is outside the image height ({})\n", overlay->y_offset,
+        LOGGER__ERROR("Error: Overlay y_offset ({}) is outside the image height ({})", overlay->y_offset,
                       image->height);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (overlay->x_offset + (int)overlay->overlay.width <= 0) {
-        LOGGER__ERROR("Error: Overlay is outside the image (x_offset={}, overlay_width={})\n", overlay->x_offset,
+        LOGGER__ERROR("Error: Overlay is outside the image (x_offset={}, overlay_width={})", overlay->x_offset,
                       overlay->overlay.width);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (overlay->y_offset + (int)overlay->overlay.height <= 0) {
-        LOGGER__ERROR("Error: Overlay is outside the image (y_offset={}, overlay_height={})\n", overlay->y_offset,
+        LOGGER__ERROR("Error: Overlay is outside the image (y_offset={}, overlay_height={})", overlay->y_offset,
                       overlay->overlay.height);
         return DSP_INVALID_ARGUMENT;
     }
@@ -67,7 +66,7 @@ dsp_status dsp_blend_perf(dsp_device device,
                           perf_info_t *perf_info)
 {
     if ((!device) || (!image) || (!overlays)) {
-        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, image={}, overlays={})\n",
+        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, image={}, overlays={})",
                       fmt::ptr(device), fmt::ptr(image), fmt::ptr(overlays));
         return DSP_INVALID_ARGUMENT;
     }
@@ -76,18 +75,18 @@ dsp_status dsp_blend_perf(dsp_device device,
     task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_BLEND);
 
     if (overlays_count > MAX_BLEND_OVERLAYS) {
-        LOGGER__ERROR("Error: Too many overlays. The operation supports up to {} overlays\n", MAX_BLEND_OVERLAYS);
+        LOGGER__ERROR("Error: Too many overlays. The operation supports up to {} overlays", MAX_BLEND_OVERLAYS);
         return DSP_INVALID_ARGUMENT;
     }
 
     auto status = verify_image_properties(image);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"image\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"image\"");
         return status;
     }
 
     if (image->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Image format ({}) is not supported\n", format_arg_to_string(image->format));
+        LOGGER__ERROR("Error: Image format ({}) is not supported", format_arg_to_string(image->format));
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -112,19 +111,19 @@ dsp_status dsp_blend_perf(dsp_device device,
     for (size_t i = 0; i < overlays_count; ++i) {
         status = verify_image_properties(&overlays[i].overlay);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Image properties check failed for \"overlays[{}]\"\n", i);
+            LOGGER__ERROR("Error: Image properties check failed for \"overlays[{}]\"", i);
             return status;
         }
 
         status = verify_overlay_params(image, &overlays[i]);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Overlay parameters check failed for \"overlays[{}]\"\n", i);
+            LOGGER__ERROR("Error: Overlay parameters check failed for \"overlays[{}]\"", i);
             return status;
         }
 
         if (overlays[i].overlay.format != DSP_IMAGE_FORMAT_A420 &&
             overlays[i].overlay.format != DSP_IMAGE_FORMAT_ARGB) {
-            LOGGER__ERROR("Error: Overlay[{}] format ({}) is not supported\n", i,
+            LOGGER__ERROR("Error: Overlay[{}] format ({}) is not supported", i,
                           format_arg_to_string(overlays[i].overlay.format));
             return DSP_INVALID_ARGUMENT;
         }
@@ -149,7 +148,7 @@ dsp_status dsp_blend_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing blend operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing blend operation. Error code: {}", status);
     }
 
     return status;

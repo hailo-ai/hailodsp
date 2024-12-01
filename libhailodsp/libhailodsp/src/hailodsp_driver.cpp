@@ -240,7 +240,7 @@ dsp_status driver_reset_kernel_statistics(int fd)
 
     int ret = ioctl(fd, XRP_IOCTL_STATS, &ioctl_stats);
     if (ret < 0) {
-        LOGGER__ERROR("Error: Failed to gather kernel statistics, err = {}\n", ret);
+        LOGGER__ERROR("Error: Failed to gather kernel statistics, err = {}", ret);
         return DSP_IOCTL_FAILED;
     }
 
@@ -253,7 +253,7 @@ dsp_status driver_get_kernel_statistics(int fd, kernel_statistics &stats)
 
     int ret = ioctl(fd, XRP_IOCTL_STATS, &ioctl_stats);
     if (ret < 0) {
-        LOGGER__ERROR("Error: Failed to gather kernel statistics, err = {}\n", ret);
+        LOGGER__ERROR("Error: Failed to gather kernel statistics, err = {}", ret);
         return DSP_IOCTL_FAILED;
     }
 

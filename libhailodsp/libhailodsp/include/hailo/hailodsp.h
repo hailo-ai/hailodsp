@@ -218,6 +218,11 @@ typedef enum {
     DSP_NO_LETTERBOX = 0,  /**< No letterbox resizing is performed */
     DSP_LETTERBOX_MIDDLE,  /**< Align the image to the middle */
     DSP_LETTERBOX_UP_LEFT, /**< Align the image up or left */
+
+    /* Must be last */
+    DSP_LETTERBOX_COUNT,
+    /** Max enum value to maintain ABI Integrity */
+    DSP_LETTERBOX_MAX_ENUM = DSP_MAX_ENUM
 } dsp_letterbox_alignment_t;
 
 /** Color parameters */
@@ -416,6 +421,24 @@ typedef struct {
     size_t rois_count;
 } dsp_privacy_mask_t;
 
+/** Structure representing image enhancement parameters for DSP */
+typedef struct {
+    /** Sharpness level. Values are in the range of [1, 5]. 1 means most blurry, 5 means most sharp. */
+    uint8_t sharpness;
+    /** Contrast value. 1.0 means no change. */
+    float contrast;
+    /** Brightness value. Values are in the range of [-128, 128]. 0 means no change. */
+    int16_t brightness;
+    /** Saturation parameter for U channel. */
+    float saturation_u_a;
+    /** Saturation parameter for U channel. Valid range is [-128, 128]. */
+    int16_t saturation_u_b;
+    /** Saturation parameter for V channel. */
+    float saturation_v_a;
+    /** Saturation parameter for V channel. Valid range is [-128, 128]. */
+    int16_t saturation_v_b;
+} dsp_image_enhancement_params_t;
+
 /**
  * @brief Perform resize operation
  * @details The function resizes the image down to or up to the specified size
@@ -521,6 +544,26 @@ dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
     dsp_device device,
     const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
     const dsp_privacy_mask_t *privacy_mask_params);
+
+/**
+ * @brief Perform image enhancement filters, apply a privacy mask and perform telescopic multi crop&resize operation
+ * @details Same as ::dsp_telescopic_multi_crop_and_resize_privacy_mask, but with an additional enhancement filters
+ *          applied to all the output images. Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12. The formats
+ *          of the src image and dst image must be identical. The destination image can only be upscaled or downscaled
+ *          up to a factor of 32.
+ * @param device A ::dsp_device object
+ * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
+ * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
+ * @param image_enhancement_params Pointer to ::dsp_image_enhancement_params_t with the required image enhancement
+ *                                 parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ * @warning This function is for usage by Hailo Media Library and may change on later releases
+ */
+dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
+    dsp_device device,
+    const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
+    const dsp_privacy_mask_t *privacy_mask_params,
+    const dsp_image_enhancement_params_t *image_enhancement_params);
 
 /**
  *  @}

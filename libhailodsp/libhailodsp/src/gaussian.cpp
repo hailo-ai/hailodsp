@@ -38,7 +38,7 @@ dsp_status dsp_multi_gaussian_perf(dsp_device device,
                                    perf_info_t *perf_info)
 {
     if ((!device) || (!params)) {
-        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, params={})\n", fmt::ptr(device),
+        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, params={})", fmt::ptr(device),
                       fmt::ptr(params));
         return DSP_INVALID_ARGUMENT;
     }
@@ -74,25 +74,25 @@ dsp_status dsp_multi_gaussian_perf(dsp_device device,
         }
 
         if (gaussian_params->src->format != DSP_IMAGE_FORMAT_GRAY8) {
-            LOGGER__ERROR("Error: Src [{}] format ({}) is not supported\n", i,
+            LOGGER__ERROR("Error: Src [{}] format ({}) is not supported", i,
                           format_arg_to_string(gaussian_params->src->format));
             return DSP_INVALID_ARGUMENT;
         }
 
         if (gaussian_params->dst->format != gaussian_params->src->format) {
-            LOGGER__ERROR("Error: Dst format ({}) is not the same as src format ({}) on gaussian {}\n",
+            LOGGER__ERROR("Error: Dst format ({}) is not the same as src format ({}) on gaussian {}",
                           format_arg_to_string(gaussian_params->dst->format),
                           format_arg_to_string(gaussian_params->src->format), i);
             return DSP_INVALID_ARGUMENT;
         }
 
         if (gaussian_params->kernel_size % 2 == 0) {
-            LOGGER__ERROR("Error: Kernel size should be odd on gaussian {}\n", i);
+            LOGGER__ERROR("Error: Kernel size should be odd on gaussian {}", i);
             return DSP_INVALID_ARGUMENT;
         }
 
         if (gaussian_params->kernel_size > MAX_FILTER_KERNEL_SIZE) {
-            LOGGER__ERROR("Error: Kernel size cannot exceed {} on gaussian {}\n", MAX_FILTER_KERNEL_SIZE, i);
+            LOGGER__ERROR("Error: Kernel size cannot exceed {} on gaussian {}", MAX_FILTER_KERNEL_SIZE, i);
             return DSP_INVALID_ARGUMENT;
         }
 
@@ -121,7 +121,7 @@ dsp_status dsp_multi_gaussian_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing gaussian operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing gaussian operation. Error code: {}", status);
     }
 
     return status;

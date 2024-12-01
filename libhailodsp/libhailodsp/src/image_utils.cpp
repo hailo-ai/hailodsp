@@ -79,20 +79,20 @@ static dsp_status verify_plane(const dsp_image_properties_t *image,
     dsp_status status = DSP_UNINITIALIZED;
 
     if (plane == NULL) {
-        LOGGER__ERROR("Error: Plane[{}] is NULL\n", plane_index);
+        LOGGER__ERROR("Error: Plane[{}] is NULL", plane_index);
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
 
     if (plane->userptr == NULL) {
-        LOGGER__ERROR("Error: Plane[{}] data pointer is NULL\n", plane_index);
+        LOGGER__ERROR("Error: Plane[{}] data pointer is NULL", plane_index);
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
 
     size_t line_stride = plane->bytesperline;
     if (line_stride < ceil((double)(image->width * bytes_per_pixel) / width_ratio)) {
-        LOGGER__ERROR("Error: Plane[{}] line stride ({}) is too small for the image width and image format specified\n",
+        LOGGER__ERROR("Error: Plane[{}] line stride ({}) is too small for the image width and image format specified",
                       plane_index, line_stride);
         status = DSP_INVALID_ARGUMENT;
         return status;
@@ -100,7 +100,7 @@ static dsp_status verify_plane(const dsp_image_properties_t *image,
 
     if (plane->bytesused < ceil((double)(line_stride * image->height) / height_ratio)) {
         LOGGER__ERROR(
-            "Error: Plane[{}] size ({}) is too small based on the plane line stride and image height specified\n",
+            "Error: Plane[{}] size ({}) is too small based on the plane line stride and image height specified",
             plane_index, plane->bytesused);
         status = DSP_INVALID_ARGUMENT;
         return status;
@@ -116,7 +116,7 @@ static dsp_status verify_gray8_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 1) {
-        LOGGER__ERROR("Error: Gray8 format should contain 1 plane\n");
+        LOGGER__ERROR("Error: Gray8 format should contain 1 plane");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -134,7 +134,7 @@ static dsp_status verify_gray16_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 1) {
-        LOGGER__ERROR("Error: Gray8 format should contain 1 plane\n");
+        LOGGER__ERROR("Error: Gray8 format should contain 1 plane");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -152,7 +152,7 @@ static dsp_status verify_rgb_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 1) {
-        LOGGER__ERROR("Error: RGB format should contain 1 plane\n");
+        LOGGER__ERROR("Error: RGB format should contain 1 plane");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -170,7 +170,7 @@ static dsp_status verify_bgr_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 1) {
-        LOGGER__ERROR("Error: BGR format should contain 1 plane\n");
+        LOGGER__ERROR("Error: BGR format should contain 1 plane");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -188,7 +188,7 @@ static dsp_status verify_argb_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 1) {
-        LOGGER__ERROR("Error: ARGB format should contain 1 plane\n");
+        LOGGER__ERROR("Error: ARGB format should contain 1 plane");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -222,7 +222,7 @@ static dsp_status verify_nv12_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 2) {
-        LOGGER__ERROR("Error: NV12 format should contain 2 planes\n");
+        LOGGER__ERROR("Error: NV12 format should contain 2 planes");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -250,7 +250,7 @@ static dsp_status verify_a420_image(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image->planes_count != 4) {
-        LOGGER__ERROR("Error: A420 format should contain 4 planes\n");
+        LOGGER__ERROR("Error: A420 format should contain 4 planes");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -290,25 +290,25 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
     dsp_status status = DSP_UNINITIALIZED;
 
     if (image == NULL) {
-        LOGGER__ERROR("Error: Pointer to dsp_image_properties_t struct is NULL\n");
+        LOGGER__ERROR("Error: Pointer to dsp_image_properties_t struct is NULL");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
 
     if (image->width == 0) {
-        LOGGER__ERROR("Error: image width is 0\n");
+        LOGGER__ERROR("Error: image width is 0");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
 
     if (image->height == 0) {
-        LOGGER__ERROR("Error: image height is 0\n");
+        LOGGER__ERROR("Error: image height is 0");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
 
     if (image->planes == NULL) {
-        LOGGER__ERROR("Error: image planes pointer is NULL\n");
+        LOGGER__ERROR("Error: image planes pointer is NULL");
         status = DSP_INVALID_ARGUMENT;
         return status;
     }
@@ -336,7 +336,7 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
             status = verify_a420_image(image);
             break;
         default:
-            LOGGER__ERROR("Error: Unknown image format {}\n", image->format);
+            LOGGER__ERROR("Error: Unknown image format {}", image->format);
             status = DSP_INVALID_ARGUMENT;
             break;
     }
@@ -354,30 +354,30 @@ dsp_status verify_image_properties(const dsp_image_properties_t *image)
 dsp_status verify_crop_params(const dsp_image_properties_t *image, const dsp_roi_t *crop_params)
 {
     if (!image || !crop_params) {
-        LOGGER__ERROR("Error: NULL argument (image={}, crop_params={})\n", fmt::ptr(image), fmt::ptr(crop_params));
+        LOGGER__ERROR("Error: NULL argument (image={}, crop_params={})", fmt::ptr(image), fmt::ptr(crop_params));
         return DSP_INVALID_ARGUMENT;
     }
 
     if (crop_params->start_x >= crop_params->end_x) {
-        LOGGER__ERROR("Error: Crop start_x ({}) must be smaller then end_x ({})\n", crop_params->start_x,
+        LOGGER__ERROR("Error: Crop start_x ({}) must be smaller then end_x ({})", crop_params->start_x,
                       crop_params->end_x);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (crop_params->start_y >= crop_params->end_y) {
-        LOGGER__ERROR("Error: Crop start_y ({}) must be smaller then end_y ({})\n", crop_params->start_y,
+        LOGGER__ERROR("Error: Crop start_y ({}) must be smaller then end_y ({})", crop_params->start_y,
                       crop_params->end_y);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (crop_params->end_x > image->width) {
-        LOGGER__ERROR("Error: Crop end_x ({}) must be smaller or equal to image width ({})\n", crop_params->end_x,
+        LOGGER__ERROR("Error: Crop end_x ({}) must be smaller or equal to image width ({})", crop_params->end_x,
                       image->width);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (crop_params->end_y > image->height) {
-        LOGGER__ERROR("Error: Crop end_y ({}) must be smaller or equal to image height ({})\n", crop_params->end_y,
+        LOGGER__ERROR("Error: Crop end_y ({}) must be smaller or equal to image height ({})", crop_params->end_y,
                       image->height);
         return DSP_INVALID_ARGUMENT;
     }

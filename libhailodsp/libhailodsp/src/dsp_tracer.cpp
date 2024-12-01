@@ -48,14 +48,12 @@ std::string dsp_tasks_strs[] = {
     [IMAGING_OP_CONVERT_FORMAT] = "Convert format",
     [IMAGING_OP_DEWARP] = "Dewarp",
     [IMAGING_OP_MULTI_CROP_AND_RESIZE] = "Multi crop and resize",
-    [IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK] = "Multi crop and resize privacy mask",
     [IMAGING_OP_ROT_DIS_DEWARP] = "Rot dis dewarp",
     [IMAGING_OP_MULTI_AFFINE_TRANSFORM] = "Affine transform",
     [IMAGING_OP_MULTI_CROP] = "Multi crop",
     [IMAGING_OP_MULTI_GAUSSIAN] = "Multi gaussian",
     [IMAGING_OP_MULTI_LAPLACIAN] = "Multi laplacian",
     [IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE] = "Telescopic multi crop and resize",
-    [IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE_PRIVACY_MASK] = "Telescopic multi crop and resize privacy mask",
 };
 
 static_assert(ARRAY_LENGTH(dsp_tasks_strs) == IMAGING_OPS_COUNT,
@@ -210,7 +208,7 @@ DspTracer::DspTracer()
 
     size_t flush_rate = get_env_var_val_num(DSP_TRACER_WRITE_PERIOD_ENV_VAR, DSP_TRACER_WRITE_PERIOD_MSEC_DEFAULT_VAL);
     write_to_file_periodically(std::chrono::milliseconds(flush_rate));
-    LOGGER__INFO("DspTracer initialized, max tasks: {}, flush rate: {} ns\n", max_tasks_amount, flush_rate);
+    LOGGER__INFO("DspTracer initialized, max tasks: {}, flush rate: {} ns", max_tasks_amount, flush_rate);
 }
 
 dsp_status DspTracer::create_output_file()
@@ -218,7 +216,7 @@ dsp_status DspTracer::create_output_file()
     output_filename = create_output_filename();
     output_file = std::make_unique<std::ofstream>(output_filename, std::ios::app);
     if (!output_file->is_open()) {
-        LOGGER__ERROR("Failed to open output file: {}\n", output_filename);
+        LOGGER__ERROR("Failed to open output file: {}", output_filename);
         is_tracing_enabled = false;
         return DSP_OUT_OF_HOST_MEMORY;
     }
@@ -226,7 +224,7 @@ dsp_status DspTracer::create_output_file()
         *output_file << data_point.header << ",";
     }
     *output_file << std::endl;
-    LOGGER__INFO("DspTracer: output file created: {}\n", output_filename);
+    LOGGER__INFO("DspTracer: output file created: {}", output_filename);
     return DSP_SUCCESS;
 }
 

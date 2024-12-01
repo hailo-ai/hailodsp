@@ -32,7 +32,7 @@
 static dsp_status safe_copy_affine_matrix(affine_transform_matrix *dst, dsp_affine_transform_matrix *src)
 {
     if (!src || !dst) {
-        LOGGER__ERROR("Error: Null affine matrix provided\n");
+        LOGGER__ERROR("Error: Null affine matrix provided");
         return DSP_INVALID_ARGUMENT;
     }
     dst->a11 = src->a11;
@@ -50,18 +50,18 @@ static dsp_status check_cropped_image_args(const dsp_image_properties_t *src,
 {
     auto status = verify_image_properties(crop->dst);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"dst\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"dst\"");
         return status;
     }
 
     if (crop->dst->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Only nv12 format is supported for warp affine\n");
+        LOGGER__ERROR("Error: Only nv12 format is supported for warp affine");
         return DSP_INVALID_ARGUMENT;
     }
 
     status = verify_crop_params(src, crop->params);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Crop parameters check failed\n");
+        LOGGER__ERROR("Error: Crop parameters check failed");
         return status;
     }
 
@@ -73,7 +73,7 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
                                       perf_info_t *perf_info)
 {
     if (!device) {
-        LOGGER__ERROR("Error: NULL argument (device={})\n", fmt::ptr(device));
+        LOGGER__ERROR("Error: NULL argument (device={})", fmt::ptr(device));
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -82,31 +82,31 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
 
     if ((multi_warp_affine_params->crops_count == 0) ||
         (multi_warp_affine_params->crops_count > MAX_AFFINE_TRANSFORMATION_CROPS)) {
-        LOGGER__ERROR("Error: bad number of images: {}, must be between 0 and {}\n",
+        LOGGER__ERROR("Error: bad number of images: {}, must be between 0 and {}",
                       multi_warp_affine_params->crops_count, MAX_AFFINE_TRANSFORMATION_CROPS);
         return DSP_INVALID_ARGUMENT;
     }
 
     auto status = verify_image_properties(multi_warp_affine_params->src);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"src\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"src\"");
         return status;
     }
 
     if (multi_warp_affine_params->interpolation != INTERPOLATION_TYPE_BILINEAR) {
-        LOGGER__ERROR("Error: only bilinear interpolation type is supported for warp affine\n");
+        LOGGER__ERROR("Error: only bilinear interpolation type is supported for warp affine");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (multi_warp_affine_params->src->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: only nv12 format is supported for warp affine\n");
+        LOGGER__ERROR("Error: only nv12 format is supported for warp affine");
         return DSP_INVALID_ARGUMENT;
     }
 
     for (size_t i = 0; i < multi_warp_affine_params->crops_count; i++) {
         status = check_cropped_image_args(multi_warp_affine_params->src, multi_warp_affine_params->crops[i]);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Bad image crop[{}] args\n", i);
+            LOGGER__ERROR("Error: Bad image crop[{}] args", i);
             return status;
         }
     }
@@ -129,7 +129,7 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
         status = safe_copy_affine_matrix(&in_data->multi_affine_transform_args.crops[i].affine_matrix,
                                          multi_warp_affine_params->crops[i]->affine_matrix);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Failed copying transformation matrix\n");
+            LOGGER__ERROR("Error: Failed copying transformation matrix");
             return status;
         }
 
@@ -157,7 +157,7 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing multi warp affine operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing multi warp affine operation. Error code: {}", status);
     }
 
     return status;
@@ -199,7 +199,7 @@ dsp_status dsp_theta_to_affine_matrix(float theta,
                                       dsp_affine_transform_matrix *affine_matrix)
 {
     if (!affine_matrix) {
-        LOGGER__ERROR("Error: Null affine matrix provided\n");
+        LOGGER__ERROR("Error: Null affine matrix provided");
         return DSP_INVALID_ARGUMENT;
     }
 

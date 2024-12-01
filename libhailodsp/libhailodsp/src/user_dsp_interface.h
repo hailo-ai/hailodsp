@@ -54,6 +54,8 @@
 #define UTILIZATION_NSID "utilizationcheck"
 #define DDR_TRAFFIC_NSID "ddrddrddrtraffic"
 
+#pragma pack(push, 4)
+
 typedef enum {
     IMAGING_OP_CROP_AND_RESIZE,
     IMAGING_OP_BLEND,
@@ -61,14 +63,12 @@ typedef enum {
     IMAGING_OP_CONVERT_FORMAT,
     IMAGING_OP_DEWARP,
     IMAGING_OP_MULTI_CROP_AND_RESIZE,
-    IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK,
     IMAGING_OP_ROT_DIS_DEWARP,
     IMAGING_OP_MULTI_AFFINE_TRANSFORM,
     IMAGING_OP_MULTI_CROP,
     IMAGING_OP_MULTI_GAUSSIAN,
     IMAGING_OP_MULTI_LAPLACIAN,
     IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE,
-    IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE_PRIVACY_MASK,
     IMAGING_OPS_COUNT,
 } imaging_operation_t;
 
@@ -113,6 +113,7 @@ typedef struct {
 } roi_in_data_t;
 
 typedef struct {
+    uint8_t enabled;
     data_plane_t bitmask;
     uint8_t y_color;
     uint8_t u_color;
@@ -120,6 +121,17 @@ typedef struct {
     roi_in_data_t rois[MAX_PRIVACY_MASK_ROIS];
     uint32_t rois_count;
 } privacy_mask_in_data_t;
+
+typedef struct {
+    uint8_t enabled;
+    uint8_t sharpness;
+    float contrast;
+    int16_t brightness;
+    float saturation_u_a;
+    int16_t saturation_u_b;
+    float saturation_v_a;
+    int16_t saturation_v_b;
+} image_enhancement_in_data_t;
 
 /** Color parameters */
 typedef union {
@@ -141,7 +153,7 @@ typedef union {
 /** Letterbox properties */
 typedef struct {
     /** Image alignment */
-    interface_letterbox_alignment_t alignment;
+    uint8_t alignment;
     /** The color used for letterboxes */
     color_t color;
 } letterbox_properties_t;
@@ -166,6 +178,7 @@ typedef struct {
     uint8_t multi_resizes_count;
     uint8_t interpolation;
     privacy_mask_in_data_t privacy_mask;
+    image_enhancement_in_data_t image_enhancement;
 } multi_crop_resize_in_data_t;
 
 typedef struct {
@@ -337,9 +350,30 @@ typedef struct {
 } rot_dis_dewarp_perf_info_t;
 
 typedef struct {
+    uint32_t y_plane_total;
+    uint32_t uv_plane_total;
+    uint32_t y_dma_in_config;
+    uint32_t uv_dma_in_config;
+    uint32_t y_dma_out_config;
+    uint32_t uv_dma_out_config;
+    uint32_t y_dma_in_wait;
+    uint32_t uv_dma_in_wait;
+    uint32_t y_dma_out_wait;
+    uint32_t uv_dma_out_wait;
+    uint32_t bitmask_dma_in;
+    uint32_t y_privacy_mask;
+    uint32_t uv_privacy_mask;
+    uint32_t y_sharpness_filter;
+    uint32_t y_contrast_brightness;
+    uint32_t y_image_enhancement;
+    uint32_t uv_image_enhancement;
+} telescopic_mutli_resize_perf_info_t;
+
+typedef struct {
     uint32_t xrp_handler;
     fik_perf_into_t fik;
     dewarp_perf_info_t dewarp;
+    telescopic_mutli_resize_perf_info_t telescopic_multi_resize;
     rot_dis_dewarp_perf_info_t rot_dis_dewarp;
 } perf_info_t;
 
@@ -364,3 +398,5 @@ typedef struct {
     uint32_t pattern[DDR_TRAFFIC_MAX_PATTERN_SIZE];
     uint32_t pattern_size;
 } ddr_traffic_request_t;
+
+#pragma pack(pop)

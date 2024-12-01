@@ -39,7 +39,7 @@ int main(int argc, char **argv)
     dsp_device device = nullptr;
     dsp_status status = dsp_create_device(&device);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Open device failed {}\n", status);
+        LOGGER__ERROR("Open device failed {}", status);
         DSP_RELEASE_DEVICE(device);
         return 1;
     }
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
     // Call dsp_get_utilization to reset the counters
     status = dsp_get_utilization(device, utilization);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Get utilization failed {}\n", status);
+        LOGGER__ERROR("Get utilization failed {}", status);
         DSP_RELEASE_DEVICE(device);
         return 1;
     }
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
 
         status = dsp_get_utilization(device, utilization);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Get utilization failed {}\n", status);
+            LOGGER__ERROR("Get utilization failed {}", status);
             DSP_RELEASE_DEVICE(device);
             return 1;
         }

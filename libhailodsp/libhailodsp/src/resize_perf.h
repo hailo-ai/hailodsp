@@ -52,7 +52,8 @@ dsp_status dsp_multi_crop_and_resize_perf(
 dsp_status dsp_telescopic_multi_crop_and_resize_perf(
     dsp_device device,
     const dsp_multi_crop_resize_params_t *resize_params,
-    const dsp_privacy_mask_t *privacy_mask_params, // optional, NULL for no privacy mask
+    const dsp_privacy_mask_t *privacy_mask_params,                  // optional, NULL for no privacy mask
+    const dsp_image_enhancement_params_t *image_enhancement_params, // optional, NULL for no image_enhancement
     perf_info_t *perf_info);
 
 #ifdef __cplusplus

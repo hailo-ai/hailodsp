@@ -40,29 +40,29 @@
 static dsp_status verify_mesh_properties(const dsp_dewarp_mesh_t *mesh, const dsp_image_properties_t *dst)
 {
     if (mesh->mesh_width == 0) {
-        LOGGER__ERROR("Error: mesh width is 0\n");
+        LOGGER__ERROR("Error: mesh width is 0");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (mesh->mesh_height == 0) {
-        LOGGER__ERROR("Error: mesh height is 0\n");
+        LOGGER__ERROR("Error: mesh height is 0");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (mesh->mesh_table == NULL) {
-        LOGGER__ERROR("Error: mesh table pointer is NULL\n");
+        LOGGER__ERROR("Error: mesh table pointer is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
     auto minimum_mesh_width = (dst->width / MESH_SQ_SIZE) + (dst->width % MESH_SQ_SIZE == 0 ? 0 : 1);
     if (mesh->mesh_width < minimum_mesh_width) {
-        LOGGER__ERROR("Error: mesh width is too small. Minimum mesh width: {}\n", minimum_mesh_width);
+        LOGGER__ERROR("Error: mesh width is too small. Minimum mesh width: {}", minimum_mesh_width);
         return DSP_INVALID_ARGUMENT;
     }
 
     auto minimum_mesh_height = (dst->height / MESH_SQ_SIZE) + (dst->height % MESH_SQ_SIZE == 0 ? 0 : 1);
     if (mesh->mesh_height < minimum_mesh_height) {
-        LOGGER__ERROR("Error: mesh height is too small. Minimum mesh height: {}\n", minimum_mesh_height);
+        LOGGER__ERROR("Error: mesh height is too small. Minimum mesh height: {}", minimum_mesh_height);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -76,41 +76,41 @@ static dsp_status verify_dewarp_params(dsp_device device,
                                        dsp_interpolation_type_t interpolation)
 {
     if ((!device) || (!src) || (!dst) || (!mesh)) {
-        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, src={}, dst={}, mesh={})\n",
+        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, src={}, dst={}, mesh={})",
                       fmt::ptr(device), fmt::ptr(src), fmt::ptr(dst), fmt::ptr(mesh));
         return DSP_INVALID_ARGUMENT;
     }
 
     auto status = verify_image_properties(src);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"src\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"src\"");
         return status;
     }
 
     status = verify_image_properties(dst);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"dst\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"dst\"");
         return status;
     }
 
     status = verify_mesh_properties(mesh, dst);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Mesh properties check failed\n");
+        LOGGER__ERROR("Error: Mesh properties check failed");
         return status;
     }
 
     if (src->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Src format ({}) is not supported\n", src->format);
+        LOGGER__ERROR("Error: Src format ({}) is not supported", src->format);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (dst->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Dst format ({}) is not supported\n", dst->format);
+        LOGGER__ERROR("Error: Dst format ({}) is not supported", dst->format);
         return DSP_INVALID_ARGUMENT;
     }
 
     if (interpolation != INTERPOLATION_TYPE_BILINEAR) {
-        LOGGER__ERROR("Error: Interpolation type ({}) not supported\n", interpolation);
+        LOGGER__ERROR("Error: Interpolation type ({}) not supported", interpolation);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -166,7 +166,7 @@ dsp_status dsp_dewarp_perf(dsp_device device,
         buffer_list.add_buffer(mesh->mesh_table, mesh_size, BufferAccessType::Read);
     status = add_images_to_buffer_list(buffer_list, images);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}", status);
         return status;
     }
 
@@ -180,7 +180,7 @@ dsp_status dsp_dewarp_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}", status);
     }
 
     return status;
@@ -209,12 +209,12 @@ static dsp_status verify_vsm_config_params(const dsp_image_properties_t *src, co
     }
 
     if (vsm_config->hoffset + vsm_config->width + max_displacement > src->width) {
-        LOGGER__ERROR("Error: vsm hoffset/width is too large\n");
+        LOGGER__ERROR("Error: vsm hoffset/width is too large");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (vsm_config->voffset + vsm_config->height + max_displacement > src->height) {
-        LOGGER__ERROR("Error: vsm voffset/height is too large\n");
+        LOGGER__ERROR("Error: vsm voffset/height is too large");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -229,20 +229,20 @@ static dsp_status verify_dsp_vsm_params(const dsp_image_properties_t *src, dsp_v
     }
 
     if (dsp_vsm->prev_rows_sum == NULL) {
-        LOGGER__ERROR("Error: dsp_vsm prev_rows_sum is NULL\n");
+        LOGGER__ERROR("Error: dsp_vsm prev_rows_sum is NULL");
         return DSP_INVALID_ARGUMENT;
     }
     if (dsp_vsm->prev_columns_sum == NULL) {
-        LOGGER__ERROR("Error: dsp_vsm prev_columns_sum is NULL\n");
+        LOGGER__ERROR("Error: dsp_vsm prev_columns_sum is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (dsp_vsm->cur_rows_sum == NULL) {
-        LOGGER__ERROR("Error: dsp_vsm cur_rows_sum is NULL\n");
+        LOGGER__ERROR("Error: dsp_vsm cur_rows_sum is NULL");
         return DSP_INVALID_ARGUMENT;
     }
     if (dsp_vsm->cur_columns_sum == NULL) {
-        LOGGER__ERROR("Error: dsp_vsm cur_columns_sum is NULL\n");
+        LOGGER__ERROR("Error: dsp_vsm cur_columns_sum is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -252,12 +252,12 @@ static dsp_status verify_dsp_vsm_params(const dsp_image_properties_t *src, dsp_v
 static dsp_status verify_isp_vsm_params(const dsp_image_properties_t *src, dsp_isp_vsm_t *isp_vsm)
 {
     if (isp_vsm->center_x > src->width) {
-        LOGGER__ERROR("Error: isp_vsm center_x is larger than src width\n");
+        LOGGER__ERROR("Error: isp_vsm center_x is larger than src width");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (isp_vsm->center_y > src->height) {
-        LOGGER__ERROR("Error: isp_vsm center_y is larger than src height\n");
+        LOGGER__ERROR("Error: isp_vsm center_y is larger than src height");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -267,17 +267,17 @@ static dsp_status verify_isp_vsm_params(const dsp_image_properties_t *src, dsp_i
 static dsp_status verify_filter_angle_params(dsp_filter_angle_t *filter_angle)
 {
     if (filter_angle->cur_angles_sum == NULL) {
-        LOGGER__ERROR("Error: filter_angle cu_angles_sum is NULL\n");
+        LOGGER__ERROR("Error: filter_angle cu_angles_sum is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (filter_angle->cur_traj == NULL) {
-        LOGGER__ERROR("Error: filter_angle cu_traj is NULL\n");
+        LOGGER__ERROR("Error: filter_angle cu_traj is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (filter_angle->stabilized_theta == NULL) {
-        LOGGER__ERROR("Error: filter_angle stabilized_theta is NULL\n");
+        LOGGER__ERROR("Error: filter_angle stabilized_theta is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -384,7 +384,7 @@ dsp_status dsp_rot_dis_dewarp_perf(dsp_device device, dsp_dewarp_angular_dis_par
         params->vsm.cur_columns_sum, params->vsm.config.width * sizeof(uint16_t), BufferAccessType::Write);
     status = add_images_to_buffer_list(buffer_list, images);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}", status);
         return status;
     }
 
@@ -395,7 +395,7 @@ dsp_status dsp_rot_dis_dewarp_perf(dsp_device device, dsp_dewarp_angular_dis_par
     tracer.update_perf_info(timeframe, out_data->perf_info);
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing dewarp operation. Error code: {}", status);
     }
 
     *params->filter_angle.stabilized_theta = out_data->stabilized_theta;

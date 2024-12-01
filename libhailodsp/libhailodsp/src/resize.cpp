@@ -51,18 +51,18 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
     }
 
     if (!image || !privacy_mask_params->bitmask) {
-        LOGGER__ERROR("Error: NULL argument (image={}, privacy_mask_params->bitmask={})\n", fmt::ptr(image),
+        LOGGER__ERROR("Error: NULL argument (image={}, privacy_mask_params->bitmask={})", fmt::ptr(image),
                       fmt::ptr(privacy_mask_params->bitmask));
         return DSP_INVALID_ARGUMENT;
     }
 
     if (privacy_mask_params->rois_count == 0) {
-        LOGGER__ERROR("Error: Must have at least 1 ROI\n");
+        LOGGER__ERROR("Error: Must have at least 1 ROI");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (privacy_mask_params->rois_count > MAX_PRIVACY_MASK_ROIS) {
-        LOGGER__ERROR("Error: Too many ROIs. The operation supports up to {} ROIs\n", MAX_PRIVACY_MASK_ROIS);
+        LOGGER__ERROR("Error: Too many ROIs. The operation supports up to {} ROIs", MAX_PRIVACY_MASK_ROIS);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -71,33 +71,33 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
         bool invalid_roi = false;
 
         if (roi_params->start_x >= roi_params->end_x) {
-            LOGGER__ERROR("Error: ROI start_x ({}) must be smaller then end_x ({})\n", roi_params->start_x,
+            LOGGER__ERROR("Error: ROI start_x ({}) must be smaller then end_x ({})", roi_params->start_x,
                           roi_params->end_x);
             invalid_roi = true;
         }
 
         if (roi_params->start_y >= roi_params->end_y) {
-            LOGGER__ERROR("Error: ROI start_y ({}) must be smaller then end_y ({})\n", roi_params->start_y,
+            LOGGER__ERROR("Error: ROI start_y ({}) must be smaller then end_y ({})", roi_params->start_y,
                           roi_params->end_y);
             invalid_roi = true;
         }
 
         const size_t bitmask_width = ceil(image->width / (float)PRIVACY_MASK_QUANTIZATION);
         if (roi_params->end_x > bitmask_width) {
-            LOGGER__ERROR("Error: ROI end_x ({}) must be smaller or equal to quantized bitmask width ({})\n",
+            LOGGER__ERROR("Error: ROI end_x ({}) must be smaller or equal to quantized bitmask width ({})",
                           roi_params->end_x, bitmask_width);
             invalid_roi = true;
         }
 
         const size_t bitmask_height = ceil(image->height / (float)PRIVACY_MASK_QUANTIZATION);
         if (roi_params->end_y > bitmask_height) {
-            LOGGER__ERROR("Error: ROI end_y ({}) must be smaller or equal to quantized bitmask height ({})\n",
+            LOGGER__ERROR("Error: ROI end_y ({}) must be smaller or equal to quantized bitmask height ({})",
                           roi_params->end_y, bitmask_height);
             invalid_roi = true;
         }
 
         if (invalid_roi) {
-            LOGGER__ERROR("Error: ROI properties check failed for \"roi[{}]\"\n", i);
+            LOGGER__ERROR("Error: ROI properties check failed for \"roi[{}]\"", i);
             return DSP_INVALID_ARGUMENT;
         }
     }
@@ -114,7 +114,7 @@ static dsp_status verify_resize_scaling(size_t src_width,
     if (dst_width * max_scale < src_width) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst width({}) can be at most {} "
-            "times smaller than src width({})\n",
+            "times smaller than src width({})",
             dst_width, max_scale, src_width);
         return DSP_INVALID_ARGUMENT;
     }
@@ -122,7 +122,7 @@ static dsp_status verify_resize_scaling(size_t src_width,
     if (dst_height * max_scale < src_height) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst height({}) can be at most {} "
-            "times smaller than src height({})\n",
+            "times smaller than src height({})",
             dst_height, max_scale, src_height);
         return DSP_INVALID_ARGUMENT;
     }
@@ -130,7 +130,7 @@ static dsp_status verify_resize_scaling(size_t src_width,
     if (dst_width > src_width * max_scale) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst width({}) can be at most {} "
-            "times larger than src width({})\n",
+            "times larger than src width({})",
             dst_width, max_scale, src_width);
         return DSP_INVALID_ARGUMENT;
     }
@@ -138,8 +138,40 @@ static dsp_status verify_resize_scaling(size_t src_width,
     if (dst_height > src_height * max_scale) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst height({}) can be at most {} "
-            "times larger than src height({})\n",
+            "times larger than src height({})",
             dst_height, max_scale, src_height);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return DSP_SUCCESS;
+}
+
+static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_params_t *image_enhancement_params)
+{
+    if (!image_enhancement_params) {
+        // image_enhancement params are optional
+        return DSP_SUCCESS;
+    }
+
+    if (image_enhancement_params->sharpness < 1 || image_enhancement_params->sharpness > 5) {
+        LOGGER__ERROR("Error: sharpness ({}) must be in the range [1, 5]", image_enhancement_params->sharpness);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (image_enhancement_params->brightness < -128 || image_enhancement_params->brightness > 128) {
+        LOGGER__ERROR("Error: brightness ({}) must be in the range [-128, 128]", image_enhancement_params->brightness);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (image_enhancement_params->saturation_u_b < -128 || image_enhancement_params->saturation_u_b > 128) {
+        LOGGER__ERROR("Error: saturation_u_b ({}) must be in the range [-128, 128]",
+                      image_enhancement_params->saturation_u_b);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (image_enhancement_params->saturation_v_b < -128 || image_enhancement_params->saturation_v_b > 128) {
+        LOGGER__ERROR("Error: saturation_v_b ({}) must be in the range [-128, 128]",
+                      image_enhancement_params->saturation_v_b);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -153,8 +185,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
                                     perf_info_t *perf_info)
 {
     if ((!device) || (!resize_params)) {
-        LOGGER__ERROR("Error: NULL argument (device={}, resize_params={})\n", fmt::ptr(device),
-                      fmt::ptr(resize_params));
+        LOGGER__ERROR("Error: NULL argument (device={}, resize_params={})", fmt::ptr(device), fmt::ptr(resize_params));
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -162,7 +193,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_CROP_AND_RESIZE);
     auto status = verify_crop_params(resize_params->src, crop_params);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Crop parameters check failed\n");
+        LOGGER__ERROR("Error: Crop parameters check failed");
         return status;
     }
 
@@ -172,13 +203,13 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
 
     status = verify_image_properties(&cropped_src);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"src\" (after crop)\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"src\" (after crop)");
         return status;
     }
 
     status = verify_image_properties(resize_params->dst);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"dst\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"dst\"");
         return status;
     }
 
@@ -191,19 +222,19 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
         status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
                                        resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Image resize scale check failed\n");
+            LOGGER__ERROR("Error: Image resize scale check failed");
             return status;
         }
     }
 
     if (resize_params->interpolation >= INTERPOLATION_TYPE_COUNT) {
-        LOGGER__ERROR("Error: Unknown interpolation type {}\n", resize_params->interpolation);
+        LOGGER__ERROR("Error: Unknown interpolation type {}", resize_params->interpolation);
         return DSP_INVALID_ARGUMENT;
     }
 
     // Only same format for src and dst is currently supported and only GRAY8, RGB, BGR or NV12
     if (resize_params->src->format != resize_params->dst->format) {
-        LOGGER__ERROR("Error: The src and dst formats are not the same\n");
+        LOGGER__ERROR("Error: The src and dst formats are not the same");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -215,14 +246,14 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
             break;
 
         default:
-            LOGGER__ERROR("Error: The src/dst format ({}) is not supported\n",
+            LOGGER__ERROR("Error: The src/dst format ({}) is not supported",
                           format_arg_to_string(resize_params->src->format));
             return DSP_INVALID_ARGUMENT;
     }
 
     if ((resize_params->interpolation == INTERPOLATION_TYPE_AREA) &&
         ((cropped_src.width < resize_params->dst->width) || (cropped_src.height < resize_params->dst->height))) {
-        LOGGER__ERROR("Error: Area interpolation does not support upscaling\n");
+        LOGGER__ERROR("Error: Area interpolation does not support upscaling");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -268,7 +299,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}", status);
     }
 
     return status;
@@ -280,12 +311,12 @@ dsp_status dsp_resize_perf(dsp_device device,
                            perf_info_t *perf_info)
 {
     if (!resize_params) {
-        LOGGER__ERROR("Error: resize_params is NULL\n");
+        LOGGER__ERROR("Error: resize_params is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
     if (!resize_params->src) {
-        LOGGER__ERROR("Error: resize_params->src is NULL\n");
+        LOGGER__ERROR("Error: resize_params->src is NULL");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -329,23 +360,22 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
                                           perf_info_t *perf_info)
 {
     if ((!device) || (!mutli_crop_resize_params)) {
-        LOGGER__ERROR("Error: NULL argument (device={}, mutli_crop_resize_params={})\n", fmt::ptr(device),
+        LOGGER__ERROR("Error: NULL argument (device={}, mutli_crop_resize_params={})", fmt::ptr(device),
                       fmt::ptr(mutli_crop_resize_params));
         return DSP_INVALID_ARGUMENT;
     }
 
     auto &tracer = DspTracer::get_instance();
-    task_timeframe_t *timeframe = tracer.start_tracing(
-        privacy_mask_params ? IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK : IMAGING_OP_MULTI_CROP_AND_RESIZE);
+    task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_MULTI_CROP_AND_RESIZE);
 
     auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Privacy mask parameters check failed\n");
+        LOGGER__ERROR("Error: Privacy mask parameters check failed");
         return status;
     }
 
     if (mutli_crop_resize_params->src->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Src format ({}) is not supported\n",
+        LOGGER__ERROR("Error: Src format ({}) is not supported",
                       format_arg_to_string(mutli_crop_resize_params->src->format));
         return DSP_INVALID_ARGUMENT;
     }
@@ -356,13 +386,13 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         return DSP_CREATE_BUFFER_FAILED;
     }
 
+    in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
-    in_data->operation =
-        privacy_mask_params ? IMAGING_OP_MULTI_CROP_AND_RESIZE_PRIVACY_MASK : IMAGING_OP_MULTI_CROP_AND_RESIZE;
+    in_data->operation = IMAGING_OP_MULTI_CROP_AND_RESIZE;
 
     if ((mutli_crop_resize_params->interpolation != INTERPOLATION_TYPE_BILINEAR) &&
         (mutli_crop_resize_params->interpolation != INTERPOLATION_TYPE_BICUBIC)) {
-        LOGGER__ERROR("Error: interpolation type ({}) not supported\n", mutli_crop_resize_params->interpolation);
+        LOGGER__ERROR("Error: interpolation type ({}) not supported", mutli_crop_resize_params->interpolation);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -382,7 +412,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
 
         auto status = verify_crop_params(mutli_crop_resize_params->src, crop_and_resize_params->crop);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Crop parameters check failed for crop&resize[{}]\n", j);
+            LOGGER__ERROR("Error: Crop parameters check failed for crop&resize[{}]", j);
             return status;
         }
 
@@ -392,7 +422,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
 
         status = verify_image_properties(&cropped_src);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Image properties check failed for src (after crop)\n");
+            LOGGER__ERROR("Error: Image properties check failed for src (after crop)");
             return status;
         }
 
@@ -405,7 +435,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
 
             status = verify_image_properties(dst_image);
             if (status != DSP_SUCCESS) {
-                LOGGER__ERROR("Error: Image properties check failed for dst[{}, {}]\n", j, i);
+                LOGGER__ERROR("Error: Image properties check failed for dst[{}, {}]", j, i);
                 return status;
             }
 
@@ -418,7 +448,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
             status = verify_resize_scaling(cropped_src.width, cropped_src.height, dst_image->width, dst_image->height,
                                            MULTI_CROP_RESIZE_MAX_SCALE);
             if (status != DSP_SUCCESS) {
-                LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]\n", j, i);
+                LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]", j, i);
                 return status;
             }
 
@@ -441,11 +471,12 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     BufferList buffer_list;
     status = add_images_to_buffer_list(buffer_list, images);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}", status);
         return status;
     }
 
     if (privacy_mask_params) {
+        in_data->multi_crop_and_resize_args.privacy_mask.enabled = true;
         const size_t bitmask_width =
             ceil(mutli_crop_resize_params->src->width / (double)(PRIVACY_MASK_QUANTIZATION * 8));
         const size_t bitmask_stride = ROUND_UP(bitmask_width, 8);
@@ -478,7 +509,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}", status);
     }
 
     return status;
@@ -511,7 +542,7 @@ dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
     }
 
     if (prev_resolution == nullptr) {
-        LOGGER__ERROR("Error: At least one image destination must be provided\n");
+        LOGGER__ERROR("Error: At least one image destination must be provided");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -522,15 +553,14 @@ dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
         }
 
         if (params->dst[i]->width > prev_resolution->width) {
-            LOGGER__ERROR("Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})\n",
-                          i, params->dst[i]->width, prev_resolution->width);
+            LOGGER__ERROR("Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})", i,
+                          params->dst[i]->width, prev_resolution->width);
             return DSP_INVALID_ARGUMENT;
         }
 
         if (params->dst[i]->height > prev_resolution->height) {
-            LOGGER__ERROR(
-                "Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})\n", i,
-                params->dst[i]->height, prev_resolution->height);
+            LOGGER__ERROR("Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})",
+                          i, params->dst[i]->height, prev_resolution->height);
             return DSP_INVALID_ARGUMENT;
         }
 
@@ -543,34 +573,40 @@ dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
 dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
                                                      const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
                                                      const dsp_privacy_mask_t *privacy_mask_params,
+                                                     const dsp_image_enhancement_params_t *image_enhancement_params,
                                                      perf_info_t *perf_info)
 {
     if ((!device) || (!mutli_crop_resize_params)) {
-        LOGGER__ERROR("Error: NULL argument (device={}, mutli_crop_resize_params={})\n", fmt::ptr(device),
+        LOGGER__ERROR("Error: NULL argument (device={}, mutli_crop_resize_params={})", fmt::ptr(device),
                       fmt::ptr(mutli_crop_resize_params));
         return DSP_INVALID_ARGUMENT;
     }
 
-    auto imaging_op = privacy_mask_params ? IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE_PRIVACY_MASK
-                                          : IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE;
+    auto imaging_op = IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE;
 
     auto &tracer = DspTracer::get_instance();
     task_timeframe_t *timeframe = tracer.start_tracing(imaging_op);
 
     auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Privacy mask parameters check failed\n");
+        LOGGER__ERROR("Error: Privacy mask parameters check failed");
+        return status;
+    }
+
+    status = verify_image_enhancement_params(image_enhancement_params);
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: image_enhancement parameters check failed");
         return status;
     }
 
     if (mutli_crop_resize_params->src->format != DSP_IMAGE_FORMAT_NV12) {
-        LOGGER__ERROR("Error: Src format ({}) is not supported\n",
+        LOGGER__ERROR("Error: Src format ({}) is not supported",
                       format_arg_to_string(mutli_crop_resize_params->src->format));
         return DSP_INVALID_ARGUMENT;
     }
 
     if (mutli_crop_resize_params->interpolation != INTERPOLATION_TYPE_BILINEAR) {
-        LOGGER__ERROR("Error: interpolation type ({}) not supported\n", mutli_crop_resize_params->interpolation);
+        LOGGER__ERROR("Error: interpolation type ({}) not supported", mutli_crop_resize_params->interpolation);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -580,6 +616,8 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         return DSP_CREATE_BUFFER_FAILED;
     }
 
+    in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
+    in_data->multi_crop_and_resize_args.image_enhancement.enabled = false;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
     in_data->operation = imaging_op;
     in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
@@ -598,7 +636,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
         auto status = verify_crop_params(mutli_crop_resize_params->src, crop_and_resize_params->crop);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Crop parameters check failed for crop&resize[{}]\n", j);
+            LOGGER__ERROR("Error: Crop parameters check failed for crop&resize[{}]", j);
             return status;
         }
 
@@ -608,13 +646,13 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
         status = verify_image_properties(&cropped_src);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Image properties check failed for src[{}] (after crop)\n", j);
+            LOGGER__ERROR("Error: Image properties check failed for src[{}] (after crop)", j);
             return status;
         }
 
         status = verify_telescopic_resolutions(crop_and_resize_params);
         if (status != DSP_SUCCESS) {
-            LOGGER__ERROR("Error: Telescopic resolutions check failed for crop&resize[{}]\n", j);
+            LOGGER__ERROR("Error: Telescopic resolutions check failed for crop&resize[{}]", j);
             return status;
         }
 
@@ -627,20 +665,20 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
             status = verify_image_properties(dst_image);
             if (status != DSP_SUCCESS) {
-                LOGGER__ERROR("Error: Image properties check failed for dst[{}, {}]\n", j, i);
+                LOGGER__ERROR("Error: Image properties check failed for dst[{}, {}]", j, i);
                 return status;
             }
 
             if (dst_image->format != DSP_IMAGE_FORMAT_NV12) {
-                LOGGER__ERROR("Error: Dst[{} {}] format ({}) is not supported\n", j, i,
-                              format_arg_to_string(dst_image->format));
+                LOGGER__ERROR("Error: brightness ({}) must be in the range [-128, 128]",
+                              image_enhancement_params->brightness);
                 return DSP_INVALID_ARGUMENT;
             }
 
             status = verify_resize_scaling(cropped_src.width, cropped_src.height, dst_image->width, dst_image->height,
                                            MULTI_CROP_RESIZE_MAX_SCALE);
             if (status != DSP_SUCCESS) {
-                LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]\n", j, i);
+                LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]", j, i);
                 return status;
             }
 
@@ -663,11 +701,12 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     BufferList buffer_list;
     status = add_images_to_buffer_list(buffer_list, images);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed adding images to buffer list. Error code: {}", status);
         return status;
     }
 
     if (privacy_mask_params) {
+        in_data->multi_crop_and_resize_args.privacy_mask.enabled = true;
         const size_t bitmask_width =
             ceil(mutli_crop_resize_params->src->width / (double)(PRIVACY_MASK_QUANTIZATION * 8));
         const size_t bitmask_stride = ROUND_UP(bitmask_width, 8);
@@ -690,6 +729,17 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         }
     }
 
+    if (image_enhancement_params) {
+        in_data->multi_crop_and_resize_args.image_enhancement.enabled = true;
+        in_data->multi_crop_and_resize_args.image_enhancement.sharpness = image_enhancement_params->sharpness;
+        in_data->multi_crop_and_resize_args.image_enhancement.contrast = image_enhancement_params->contrast;
+        in_data->multi_crop_and_resize_args.image_enhancement.brightness = image_enhancement_params->brightness;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_a = image_enhancement_params->saturation_u_a;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_b = image_enhancement_params->saturation_u_b;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_a = image_enhancement_params->saturation_v_a;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_b = image_enhancement_params->saturation_v_b;
+    }
+
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
                           timeframe);
@@ -700,7 +750,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}", status);
     }
 
     return status;
@@ -709,7 +759,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 dsp_status dsp_telescopic_multi_crop_and_resize(dsp_device device,
                                                 const dsp_multi_crop_resize_params_t *mutli_crop_resize_params)
 {
-    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, NULL, NULL);
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, NULL, NULL, NULL);
 }
 
 dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
@@ -717,5 +767,15 @@ dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
     const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
     const dsp_privacy_mask_t *privacy_mask_params)
 {
-    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL);
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL, NULL);
+}
+
+dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
+    dsp_device device,
+    const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
+    const dsp_privacy_mask_t *privacy_mask_params,
+    const dsp_image_enhancement_params_t *image_enhancement_params)
+{
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params,
+                                                     image_enhancement_params, NULL);
 }

@@ -37,7 +37,7 @@ dsp_status dsp_convert_format_perf(dsp_device device,
                                    perf_info_t *perf_info)
 {
     if (!device) {
-        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, src={}, dst={})\n", fmt::ptr(device),
+        LOGGER__ERROR("Error: One of the parameters provided is NULL (device={}, src={}, dst={})", fmt::ptr(device),
                       fmt::ptr(src), fmt::ptr(dst));
         return DSP_INVALID_ARGUMENT;
     }
@@ -47,13 +47,13 @@ dsp_status dsp_convert_format_perf(dsp_device device,
 
     auto status = verify_image_properties(src);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"src\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"src\"");
         return status;
     }
 
     status = verify_image_properties(dst);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Image properties check failed for \"dst\"\n");
+        LOGGER__ERROR("Error: Image properties check failed for \"dst\"");
         return status;
     }
 
@@ -66,13 +66,13 @@ dsp_status dsp_convert_format_perf(dsp_device device,
           (src->format == DSP_IMAGE_FORMAT_BGR && dst->format == DSP_IMAGE_FORMAT_NV12) ||
           (src->format == DSP_IMAGE_FORMAT_NV12 && dst->format == DSP_IMAGE_FORMAT_RGB) ||
           (src->format == DSP_IMAGE_FORMAT_NV12 && dst->format == DSP_IMAGE_FORMAT_BGR))) {
-        LOGGER__ERROR("Error: Conversion from src {} to dst {} isn't supported\n", format_arg_to_string(src->format),
+        LOGGER__ERROR("Error: Conversion from src {} to dst {} isn't supported", format_arg_to_string(src->format),
                       format_arg_to_string(dst->format));
         return DSP_INVALID_ARGUMENT;
     }
 
     if (src->width != dst->width || src->height != dst->height) {
-        LOGGER__ERROR("Error: The src and dst sizes are not the same\n");
+        LOGGER__ERROR("Error: The src and dst sizes are not the same");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -107,7 +107,7 @@ dsp_status dsp_convert_format_perf(dsp_device device,
     }
 
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: Failed executing format conversion operation. Error code: {}\n", status);
+        LOGGER__ERROR("Error: Failed executing format conversion operation. Error code: {}", status);
     }
 
     return status;

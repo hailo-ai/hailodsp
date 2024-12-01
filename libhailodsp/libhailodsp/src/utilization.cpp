@@ -33,7 +33,7 @@
 dsp_status dsp_get_utilization(dsp_device device, uint32_t &utilization)
 {
     if (!device) {
-        LOGGER__ERROR("Error: device is null\n");
+        LOGGER__ERROR("Error: device is null");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -51,7 +51,7 @@ dsp_status dsp_get_utilization(dsp_device device, uint32_t &utilization)
 dsp_status dsp_reset_kernel_statistics(dsp_device device)
 {
     if (!device) {
-        LOGGER__ERROR("Error: device is null\n");
+        LOGGER__ERROR("Error: device is null");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -61,7 +61,7 @@ dsp_status dsp_reset_kernel_statistics(dsp_device device)
 dsp_status dsp_get_kernel_statistics(dsp_device device, kernel_statistics &stats)
 {
     if (!device) {
-        LOGGER__ERROR("Error: device is null\n");
+        LOGGER__ERROR("Error: device is null");
         return DSP_INVALID_ARGUMENT;
     }
 
