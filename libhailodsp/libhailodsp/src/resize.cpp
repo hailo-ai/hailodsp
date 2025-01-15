@@ -146,10 +146,11 @@ static dsp_status verify_resize_scaling(size_t src_width,
     return DSP_SUCCESS;
 }
 
-static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_params_t *image_enhancement_params)
+static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_params_t *image_enhancement_params,
+                                                  const dsp_multi_crop_resize_params_t *mutli_crop_resize_params)
 {
     if (!image_enhancement_params) {
-        // image_enhancement params are optional
+        // image enhancement params are optional
         return DSP_SUCCESS;
     }
 
@@ -172,6 +173,35 @@ static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_pa
     if (image_enhancement_params->saturation_v_b < -128 || image_enhancement_params->saturation_v_b > 128) {
         LOGGER__ERROR("Error: saturation_v_b ({}) must be in the range [-128, 128]",
                       image_enhancement_params->saturation_v_b);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (image_enhancement_params->histogram_params && mutli_crop_resize_params->crop_resize_params_count > 1) {
+        LOGGER__ERROR("Error: Histogram is supported only for a single crop");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    return DSP_SUCCESS;
+}
+
+static dsp_status verify_image_enhancement_histogram_params(
+    const dsp_image_enhancement_params_t *image_enhancement_params,
+    const dsp_image_properties_t *image)
+{
+    if (!image_enhancement_params || !image_enhancement_params->histogram_params) {
+        // image enhancement and histogram params are optional
+        return DSP_SUCCESS;
+    }
+
+    if (image_enhancement_params->histogram_params->x_sample_step >= image->width) {
+        LOGGER__ERROR("Error: X sample step ({}) must be smaller than image width ({})",
+                      image_enhancement_params->histogram_params->x_sample_step, image->width);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (image_enhancement_params->histogram_params->y_sample_step >= image->height) {
+        LOGGER__ERROR("Error: Y sample step ({}) must be smaller than image height ({})",
+                      image_enhancement_params->histogram_params->y_sample_step, image->height);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -387,6 +417,8 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     }
 
     in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
+    in_data->multi_crop_and_resize_args.image_enhancement.enabled = false;
+    in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = false;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
     in_data->operation = IMAGING_OP_MULTI_CROP_AND_RESIZE;
 
@@ -593,9 +625,9 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         return status;
     }
 
-    status = verify_image_enhancement_params(image_enhancement_params);
+    status = verify_image_enhancement_params(image_enhancement_params, mutli_crop_resize_params);
     if (status != DSP_SUCCESS) {
-        LOGGER__ERROR("Error: image_enhancement parameters check failed");
+        LOGGER__ERROR("Error: Image enhancement parameters check failed");
         return status;
     }
 
@@ -606,7 +638,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     }
 
     if (mutli_crop_resize_params->interpolation != INTERPOLATION_TYPE_BILINEAR) {
-        LOGGER__ERROR("Error: interpolation type ({}) not supported", mutli_crop_resize_params->interpolation);
+        LOGGER__ERROR("Error: Interpolation type ({}) not supported", mutli_crop_resize_params->interpolation);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -618,6 +650,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
     in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.enabled = false;
+    in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = false;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
     in_data->operation = imaging_op;
     in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
@@ -656,6 +689,12 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
             return status;
         }
 
+        status = verify_image_enhancement_histogram_params(image_enhancement_params, &cropped_src);
+        if (status != DSP_SUCCESS) {
+            LOGGER__ERROR("Error: Image enhancement histogram params check failed for crop[{}]", j);
+            return status;
+        }
+
         size_t dst_count = 0;
         for (int i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; ++i) {
             auto dst_image = crop_and_resize_params->dst[i];
@@ -670,8 +709,8 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
             }
 
             if (dst_image->format != DSP_IMAGE_FORMAT_NV12) {
-                LOGGER__ERROR("Error: brightness ({}) must be in the range [-128, 128]",
-                              image_enhancement_params->brightness);
+                LOGGER__ERROR("Error: Dst[{} {}] format ({}) is not supported", j, i,
+                              format_arg_to_string(dst_image->format));
                 return DSP_INVALID_ARGUMENT;
             }
 
@@ -738,6 +777,22 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_b = image_enhancement_params->saturation_u_b;
         in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_a = image_enhancement_params->saturation_v_a;
         in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_b = image_enhancement_params->saturation_v_b;
+
+        if (image_enhancement_params->histogram_params) {
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = true;
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram.x_sample_step =
+                image_enhancement_params->histogram_params->x_sample_step;
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram.y_sample_step =
+                image_enhancement_params->histogram_params->y_sample_step;
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram.histogram.line_stride =
+                sizeof(image_enhancement_params->histogram_params->histogram);
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram.histogram.plane_size =
+                sizeof(image_enhancement_params->histogram_params->histogram);
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram.histogram.xrp_buffer_index =
+                buffer_list.add_buffer(image_enhancement_params->histogram_params->histogram,
+                                       sizeof(image_enhancement_params->histogram_params->histogram),
+                                       BufferAccessType::Write);
+        }
     }
 
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;

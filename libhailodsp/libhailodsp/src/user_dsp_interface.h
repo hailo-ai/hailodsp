@@ -124,6 +124,13 @@ typedef struct {
 
 typedef struct {
     uint8_t enabled;
+    uint16_t x_sample_step;
+    uint16_t y_sample_step;
+    data_plane_t histogram;
+} image_enhancement_histogram_in_data_t;
+
+typedef struct {
+    uint8_t enabled;
     uint8_t sharpness;
     float contrast;
     int16_t brightness;
@@ -131,6 +138,7 @@ typedef struct {
     int16_t saturation_u_b;
     float saturation_v_a;
     int16_t saturation_v_b;
+    image_enhancement_histogram_in_data_t histogram;
 } image_enhancement_in_data_t;
 
 /** Color parameters */
@@ -363,6 +371,8 @@ typedef struct {
     uint32_t bitmask_dma_in;
     uint32_t y_privacy_mask;
     uint32_t uv_privacy_mask;
+    uint32_t histogram;
+    uint32_t histogram_dma_out;
     uint32_t y_sharpness_filter;
     uint32_t y_contrast_brightness;
     uint32_t y_image_enhancement;

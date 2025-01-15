@@ -36,7 +36,7 @@
 dsp_status driver_open_device(int &fd)
 {
     const char *device_path = "/dev/dsp0";
-    fd = open(device_path, O_RDWR);
+    fd = open(device_path, O_RDWR | O_CLOEXEC);
     if (fd == -1) {
         LOGGER__ERROR("Error: Failed to open device \"{}\"", device_path);
         return DSP_OPEN_DEVICE_FAILED;

@@ -420,8 +420,28 @@ typedef struct {
     dsp_roi_t *rois;
     size_t rois_count;
 } dsp_privacy_mask_t;
+/**
+ * Structure representing a histogram of the Y channel
+ * The sparsity of the sampling is configurable - both horizontally and vertically
+ */
+typedef struct {
+    /** Interval for sampling along the X axis */
+    uint16_t x_sample_step;
+    /** Interval for sampling along the Y axis */
+    uint16_t y_sample_step;
+    /** Histogram of Y pixels. histogram[value] = count */
+    uint32_t histogram[256];
+} dsp_image_enhancement_histogram_t;
 
-/** Structure representing image enhancement parameters for DSP */
+/**
+ * Structure representing image enhancement parameters for DSP
+ * @note In addition to sharpness modification, DSP performs:
+ * Y_out = Y_in * contrast + brightness
+ * (for each pixel in Y channel)
+ * U_out = U_in * saturation_u_a + saturation_u_b
+ * V_out = V_in * saturation_v_a + saturation_v_b
+ * (for each pixel in UV channel)
+ */
 typedef struct {
     /** Sharpness level. Values are in the range of [1, 5]. 1 means most blurry, 5 means most sharp. */
     uint8_t sharpness;
@@ -429,14 +449,18 @@ typedef struct {
     float contrast;
     /** Brightness value. Values are in the range of [-128, 128]. 0 means no change. */
     int16_t brightness;
-    /** Saturation parameter for U channel. */
+    /** Saturation parameter for U channel. 1.0 means no change. */
     float saturation_u_a;
-    /** Saturation parameter for U channel. Valid range is [-128, 128]. */
+    /** Saturation parameter for U channel. Valid range is [-128, 128]. 0 means no change. */
     int16_t saturation_u_b;
-    /** Saturation parameter for V channel. */
+    /** Saturation parameter for V channel. 1.0 means no change. */
     float saturation_v_a;
-    /** Saturation parameter for V channel. Valid range is [-128, 128]. */
+    /** Saturation parameter for V channel. Valid range is [-128, 128]. 0 means no change. */
     int16_t saturation_v_b;
+    /** Optional pointer to ::dsp_image_enhancement_histogram_t. May be NULL.
+     *  If present, the DSP will generate a histogram of the Y channel values and fill this structure.
+     * @note Histogram is supported only for a single crop (see ::dsp_multi_crop_resize_params_t). */
+    dsp_image_enhancement_histogram_t *histogram_params;
 } dsp_image_enhancement_params_t;
 
 /**

@@ -40,7 +40,7 @@ add_library(
   src/gaussian.cpp
   src/laplacian.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.4.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.6.0)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

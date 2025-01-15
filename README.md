@@ -6,7 +6,7 @@ libhailodsp is a high-performance DSP library that provides a set of APIs for ru
 
 ## Usage
 
-See [**hailo.ai developer zone documentation**](https://hailo.ai/developer-zone/documentation/hailort/latest/) (registration is required for full documentation access).
+See [**hailo.ai developer zone documentation**](https://hailo.ai/developer-zone/) (registration is required for full documentation access).
 
 ## Licenses
 
