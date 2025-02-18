@@ -91,6 +91,18 @@ typedef enum {
     INTERFACE_LETTERBOX_UP_LEFT, /**< Align the image up or left */
 } interface_letterbox_alignment_t;
 
+typedef enum {
+    INTERFACE_FLIP_DIRECTION_NONE = 0,
+    INTERFACE_FLIP_DIRECTION_HORIZONTAL,
+    INTERFACE_FLIP_DIRECTION_VERTICAL,
+    INTERFACE_FLIP_DIRECTION_BOTH
+} interface_flip_direction_t;
+
+typedef enum {
+    INTERFACE_ROTATION_ANGLE_0 = 0,
+    INTERFACE_ROTATION_ANGLE_180 = 2,
+} interface_rotation_angle_t;
+
 typedef struct {
     uint32_t xrp_buffer_index;
     uint32_t line_stride; // in bytes
@@ -178,7 +190,14 @@ typedef struct {
     roi_in_data_t crop;
     image_properties_t dst[MAX_MULTI_RESIZE_OUTPUTS];
     uint8_t dst_count;
+    uint8_t keep_aspect_ratio;
 } multi_resize_in_data_t;
+
+typedef struct {
+    uint8_t enabled;
+    uint8_t flip_direction;
+    uint8_t rotation_angle;
+} flip_rotate_in_data_t;
 
 typedef struct {
     image_properties_t src;
@@ -187,6 +206,7 @@ typedef struct {
     uint8_t interpolation;
     privacy_mask_in_data_t privacy_mask;
     image_enhancement_in_data_t image_enhancement;
+    flip_rotate_in_data_t flip_rotate;
 } multi_crop_resize_in_data_t;
 
 typedef struct {
@@ -350,6 +370,8 @@ typedef struct {
 } dewarp_perf_info_t;
 
 typedef struct {
+    uint32_t prev_sums_dma_config;
+    uint32_t mesh_dma_config;
     uint32_t vsm_calculation_window;
     uint32_t vsm_calculation_rows;
     uint32_t vsm_calculation_cols;
@@ -377,6 +399,8 @@ typedef struct {
     uint32_t y_contrast_brightness;
     uint32_t y_image_enhancement;
     uint32_t uv_image_enhancement;
+    uint32_t y_flip_rotate;
+    uint32_t uv_flip_rotate;
 } telescopic_mutli_resize_perf_info_t;
 
 typedef struct {

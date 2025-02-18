@@ -34,6 +34,7 @@ extern "C" {
 #include <stdlib.h>
 
 #define DSP_MAX_ENUM (INT_MAX)
+#define DSP_DEFAULT_DEVICE_PRIORITY (0)
 
 /**
  *  @defgroup status DSP Status codes
@@ -56,6 +57,8 @@ typedef enum {
     DSP_UNMAP_BUFFER_FAILED,        /**< Failed unmapping buffer */
     DSP_SYNC_BUFFER_FAILED,         /**< Failed synching buffer */
     DSP_IOCTL_FAILED,               /**< General error for driver communication failure */
+    DSP_TIMEOUT,                    /**< Timeout occurred */
+    DSP_ABORTED,                    /**< Operation was aborted */
 
     DSP_STATUS_COUNT,                  /* Must be last */
     DSP_STATUS_MAX_ENUM = DSP_MAX_ENUM /**< Max enum value to maintain ABI Integrity */
@@ -260,6 +263,9 @@ typedef struct {
 /** Opaque pointer to dsp_device object. The device object holds state and data required to issue commands */
 typedef struct dsp_device_internal *dsp_device;
 
+/** Priority level of dsp_device object */
+typedef int priority_t;
+
 /**
  * Create new dsp_device object
  *
@@ -276,6 +282,16 @@ dsp_status dsp_create_device(dsp_device *device);
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_release_device(dsp_device device);
+
+/**
+ * Set priority level to operations of dsp_device object. Higher priority levels will be executed first.
+ * The default priority level is @a DSP_DEFAULT_DEVICE_PRIORITY.
+ *
+ * @param device A ::dsp_device to be prioritized
+ * @param priority Priority level to set
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ */
+dsp_status dsp_set_priority(dsp_device device, priority_t priority);
 
 /**
  *  @}
@@ -374,6 +390,13 @@ typedef struct {
      *  Assign NULL on the array entries to reduce the number of outputs.
      */
     const dsp_image_properties_t *dst[DSP_MULTI_RESIZE_OUTPUTS_COUNT];
+    /**
+     * If false, the entire \p crop will be resized to fit each destination resolution.
+     * If true, the field of view will be reduced to maintain the \p crop aspect ratio for destination resolutions with
+     * a different aspect ratio.
+     * @note This field takes effect only in the dsp_telescopic_multi_crop_and_resize API family
+     */
+    bool keep_aspect_ratio;
 } dsp_crop_resize_params_t;
 
 /** Multi-Resize parameters */
@@ -462,6 +485,34 @@ typedef struct {
      * @note Histogram is supported only for a single crop (see ::dsp_multi_crop_resize_params_t). */
     dsp_image_enhancement_histogram_t *histogram_params;
 } dsp_image_enhancement_params_t;
+
+typedef enum {
+    DSP_FLIP_DIRECTION_NONE = 0,
+    DSP_FLIP_DIRECTION_HORIZONTAL,
+    DSP_FLIP_DIRECTION_VERTICAL,
+    DSP_FLIP_DIRECTION_BOTH,
+    /** Max enum value to maintain ABI Integrity */
+    DSP_FLIP_DIRECTION_MAX = DSP_MAX_ENUM
+} dsp_flip_direction_t;
+
+typedef enum {
+    DSP_ROTATION_ANGLE_0 = 0,
+    DSP_ROTATION_ANGLE_180 = 2,
+    /** Max enum value to maintain ABI Integrity */
+    DSP_ROTATION_ANGLE_MAX = DSP_MAX_ENUM
+} dsp_rotation_angle_t;
+
+typedef struct {
+    dsp_flip_direction_t flip_dir;
+    dsp_rotation_angle_t rot_ang;
+} dsp_flip_rotate_params_t;
+
+typedef struct {
+    const dsp_multi_crop_resize_params_t *multi_crop_resize_params;
+    const dsp_privacy_mask_t *privacy_mask_params;
+    const dsp_image_enhancement_params_t *image_enhancement_params;
+    const dsp_flip_rotate_params_t *flip_rotate_params;
+} dsp_frontend_params_t;
 
 /**
  * @brief Perform resize operation
@@ -589,6 +640,7 @@ dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
     const dsp_privacy_mask_t *privacy_mask_params,
     const dsp_image_enhancement_params_t *image_enhancement_params);
 
+dsp_status dsp_frontend_process(dsp_device device, const dsp_frontend_params_t *params);
 /**
  *  @}
  *  @defgroup blend Blend API

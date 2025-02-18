@@ -29,6 +29,7 @@
 #include "thread_local_buffer.hpp"
 #include "user_dsp_interface.h"
 
+#include <utility>
 #include <utils.h>
 
 #define CROP_RESIZE_MAX_SCALE (16)
@@ -40,6 +41,20 @@ static_assert((int)DSP_LETTERBOX_MIDDLE == (int)INTERFACE_LETTERBOX_MIDDLE,
               "Interface and internal implementation must have the same number for letterbox middle");
 static_assert((int)DSP_LETTERBOX_UP_LEFT == (int)INTERFACE_LETTERBOX_UP_LEFT,
               "Interface and internal implementation must have the same number for letterbox up_left");
+
+static_assert((int)DSP_FLIP_DIRECTION_NONE == (int)INTERFACE_FLIP_DIRECTION_NONE,
+              "Interface and internal implementation must have the same number for no flip direction");
+static_assert((int)DSP_FLIP_DIRECTION_HORIZONTAL == (int)INTERFACE_FLIP_DIRECTION_HORIZONTAL,
+              "Interface and internal implementation must have the same number for horizontal flip direction");
+static_assert((int)DSP_FLIP_DIRECTION_VERTICAL == (int)INTERFACE_FLIP_DIRECTION_VERTICAL,
+              "Interface and internal implementation must have the same number for vertical flip direction");
+static_assert((int)DSP_FLIP_DIRECTION_BOTH == (int)INTERFACE_FLIP_DIRECTION_BOTH,
+              "Interface and internal implementation must have the same number for both flip direction");
+
+static_assert((int)DSP_ROTATION_ANGLE_0 == (int)INTERFACE_ROTATION_ANGLE_0,
+              "Interface and internal implementation must have the same number for 0 degrees rotation");
+static_assert((int)DSP_ROTATION_ANGLE_180 == (int)INTERFACE_ROTATION_ANGLE_180,
+              "Interface and internal implementation must have the same number for 180 degrees rotation");
 
 // This function assumes that "image" params is already checked for correctness
 static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image,
@@ -559,6 +574,31 @@ dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
     return dsp_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL);
 }
 
+static std::pair<size_t, size_t> adjust_to_aspect_ratio(size_t src_width,
+                                                        size_t src_height,
+                                                        size_t dst_width,
+                                                        size_t dst_height)
+{
+    float src_aspect_ratio = static_cast<float>(src_width) / src_height;
+    float dst_aspect_ratio = static_cast<float>(dst_width) / dst_height;
+
+    size_t new_width, new_height;
+    if (dst_aspect_ratio > src_aspect_ratio) {
+        // adjust height to maintain aspect ratio
+        new_width = dst_width;
+        new_height = std::ceil(dst_width / src_aspect_ratio);
+    } else {
+        // adjust width to maintain aspect ratio
+        new_width = std::ceil(dst_height * src_aspect_ratio);
+        new_height = dst_height;
+    }
+
+    new_width = ROUND_UP(new_width, 2);
+    new_height = ROUND_UP(new_height, 2);
+
+    return {new_width, new_height};
+}
+
 /* Telescopic is only valid if each resolution is less than or equal to the previous one in both width and height */
 dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
 {
@@ -584,16 +624,41 @@ dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
             continue;
         }
 
-        if (params->dst[i]->width > prev_resolution->width) {
-            LOGGER__ERROR("Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})", i,
-                          params->dst[i]->width, prev_resolution->width);
-            return DSP_INVALID_ARGUMENT;
-        }
+        if (!params->keep_aspect_ratio) {
+            if (params->dst[i]->width > prev_resolution->width) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})", i,
+                    params->dst[i]->width, prev_resolution->width);
+                return DSP_INVALID_ARGUMENT;
+            }
+            if (params->dst[i]->height > prev_resolution->height) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})", i,
+                    params->dst[i]->height, prev_resolution->height);
+                return DSP_INVALID_ARGUMENT;
+            }
+        } else {
+            auto src_width = params->crop->end_x - params->crop->start_x;
+            auto src_height = params->crop->end_y - params->crop->start_y;
+            auto [prev_width, prev_height] =
+                adjust_to_aspect_ratio(src_width, src_height, prev_resolution->width, prev_resolution->height);
+            auto [width, height] =
+                adjust_to_aspect_ratio(src_width, src_height, params->dst[i]->width, params->dst[i]->height);
 
-        if (params->dst[i]->height > prev_resolution->height) {
-            LOGGER__ERROR("Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})",
-                          i, params->dst[i]->height, prev_resolution->height);
-            return DSP_INVALID_ARGUMENT;
+            if (width > prev_width) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} (aspect ratio) width ({} -> {}) must be lower or equal to previous "
+                    "resolution width ({} -> {})",
+                    i, params->dst[i]->width, width, prev_resolution->width, prev_width);
+                return DSP_INVALID_ARGUMENT;
+            }
+            if (height > prev_height) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} (aspect ratio) height ({} -> {}) must be lower or equal to previous "
+                    "resolution height ({} -> {})",
+                    i, params->dst[i]->height, height, prev_resolution->height, prev_height);
+                return DSP_INVALID_ARGUMENT;
+            }
         }
 
         prev_resolution = params->dst[i];
@@ -606,6 +671,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
                                                      const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
                                                      const dsp_privacy_mask_t *privacy_mask_params,
                                                      const dsp_image_enhancement_params_t *image_enhancement_params,
+                                                     const dsp_flip_rotate_params_t *flip_rotate_params,
                                                      perf_info_t *perf_info)
 {
     if ((!device) || (!mutli_crop_resize_params)) {
@@ -651,9 +717,10 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = false;
+    in_data->multi_crop_and_resize_args.flip_rotate.enabled = false;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
-    in_data->operation = imaging_op;
     in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
+    in_data->operation = imaging_op;
 
     std::vector<command_image_t> images;
     images.reserve(1 + MAX_MULTI_RESIZE_OUTPUTS * mutli_crop_resize_params->crop_resize_params_count);
@@ -735,6 +802,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         crop_and_resize_args->crop.start_y = crop_and_resize_params->crop->start_y;
         crop_and_resize_args->crop.end_x = crop_and_resize_params->crop->end_x;
         crop_and_resize_args->crop.end_y = crop_and_resize_params->crop->end_y;
+        crop_and_resize_args->keep_aspect_ratio = crop_and_resize_params->keep_aspect_ratio;
     }
 
     BufferList buffer_list;
@@ -795,6 +863,14 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         }
     }
 
+    if (flip_rotate_params) {
+        in_data->multi_crop_and_resize_args.flip_rotate.enabled = true;
+        in_data->multi_crop_and_resize_args.flip_rotate.flip_direction =
+            (interface_flip_direction_t)flip_rotate_params->flip_dir;
+        in_data->multi_crop_and_resize_args.flip_rotate.rotation_angle =
+            (interface_rotation_angle_t)flip_rotate_params->rot_ang;
+    }
+
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
                           timeframe);
@@ -814,7 +890,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 dsp_status dsp_telescopic_multi_crop_and_resize(dsp_device device,
                                                 const dsp_multi_crop_resize_params_t *mutli_crop_resize_params)
 {
-    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, NULL, NULL, NULL);
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, NULL, NULL, NULL, NULL);
 }
 
 dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
@@ -822,7 +898,8 @@ dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
     const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
     const dsp_privacy_mask_t *privacy_mask_params)
 {
-    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL, NULL);
+    return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL, NULL,
+                                                     NULL);
 }
 
 dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
@@ -832,5 +909,12 @@ dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
     const dsp_image_enhancement_params_t *image_enhancement_params)
 {
     return dsp_telescopic_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params,
-                                                     image_enhancement_params, NULL);
+                                                     image_enhancement_params, NULL, NULL);
+}
+
+dsp_status dsp_frontend_process(dsp_device device, const dsp_frontend_params_t *params)
+{
+    return dsp_telescopic_multi_crop_and_resize_perf(device, params->multi_crop_resize_params,
+                                                     params->privacy_mask_params, params->image_enhancement_params,
+                                                     params->flip_rotate_params, NULL);
 }

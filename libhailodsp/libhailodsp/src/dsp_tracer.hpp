@@ -33,6 +33,7 @@
 
 typedef enum {
     DSP_TASK_STARTED_EVENT,
+    DSP_TASK_ENTERED_PRIORITY_QUEUE_EVENT,
     DSP_USER_SENT_IOCTL_EVENT,
     DSP_KERNEL_RECEIVED_IOCTL_EVENT,
     DSP_WAITING_ON_MUTEX_EVENT,
@@ -45,6 +46,7 @@ typedef enum {
 
 typedef struct {
     uint64_t task_started;
+    uint64_t task_entered_priority_queue;
     uint64_t user_sent_ioctl;
     uint64_t kernel_received_ioctl;
     uint64_t waiting_on_mutex;

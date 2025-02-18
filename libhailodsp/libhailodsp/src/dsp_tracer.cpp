@@ -78,6 +78,11 @@ static struct {
                           const task_timeframe_t &task) { stream << task.a53_times.task_started; },
     },
     {
+        .header = "Task entered priority queue",
+        .write_field = [](std::ofstream &stream,
+                          const task_timeframe_t &task) { stream << task.a53_times.task_entered_priority_queue; },
+    },
+    {
         .header = "User sent IOCTL",
         .write_field = [](std::ofstream &stream,
                           const task_timeframe_t &task) { stream << task.a53_times.user_sent_ioctl; },
@@ -287,6 +292,9 @@ void DspTracer::update_event_timestamp(task_timeframe_t *task, dsp_trace_event_t
 
     std::lock_guard<std::mutex> lock(trace_handlers_mutex);
     switch (event_type) {
+        case DSP_TASK_ENTERED_PRIORITY_QUEUE_EVENT:
+            task->a53_times.task_entered_priority_queue = time;
+            break;
         case DSP_USER_SENT_IOCTL_EVENT:
             task->a53_times.user_sent_ioctl = time;
             break;

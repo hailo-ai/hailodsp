@@ -26,7 +26,32 @@
 #include "hailodsp_driver.hpp"
 #include "image_utils.hpp"
 #include "logger_macros.hpp"
+#include "priority_queue.hpp"
 #include "send_command.hpp"
+
+static dsp_status send_command_with_priority(dsp_device device,
+                                             std::function<dsp_status()> func,
+                                             task_timeframe_t *timeframe = nullptr)
+{
+    if (timeframe) {
+        auto &tracer = DspTracer::get_instance();
+        tracer.update_event_timestamp_now(timeframe, DSP_TASK_ENTERED_PRIORITY_QUEUE_EVENT);
+    }
+
+    std::shared_ptr<TaskHandle> handle = nullptr;
+    auto status = PriorityQueueSingleton::get_instance()->enqueue(func, device->priority, handle);
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    dsp_status task_status = DSP_UNINITIALIZED;
+    status = handle->wait(INFINITE_TIMEOUT, task_status);
+    if (status != DSP_SUCCESS) {
+        return status;
+    }
+
+    return task_status;
+}
 
 dsp_status add_images_to_buffer_list(BufferList &buffer_list, std::vector<command_image_t> images)
 {
@@ -52,7 +77,10 @@ dsp_status send_command(dsp_device device,
                         void *out_data,
                         size_t out_data_size)
 {
-    return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data, out_data_size);
+    return send_command_with_priority(device, [&]() {
+        return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data,
+                                   out_data_size);
+    });
 }
 
 dsp_status send_command(dsp_device device,
@@ -79,12 +107,18 @@ dsp_status send_command(dsp_device device,
                         size_t out_data_size,
                         task_timeframe_t *timeframe)
 {
-    if (timeframe) {
-        return driver_send_command(device->fd, IMAGING_NSID, buffers, timeframe, in_data, in_data_size, out_data,
-                                   out_data_size);
-    } else {
-        return driver_send_command(device->fd, IMAGING_NSID, buffers, in_data, in_data_size, out_data, out_data_size);
-    }
+    return send_command_with_priority(
+        device,
+        [&]() {
+            if (timeframe) {
+                return driver_send_command(device->fd, IMAGING_NSID, buffers, timeframe, in_data, in_data_size,
+                                           out_data, out_data_size);
+            } else {
+                return driver_send_command(device->fd, IMAGING_NSID, buffers, in_data, in_data_size, out_data,
+                                           out_data_size);
+            }
+        },
+        timeframe);
 }
 
 dsp_status send_command(dsp_device device,
@@ -101,11 +135,16 @@ dsp_status send_command(dsp_device device,
         return status;
     }
 
-    if (timeframe) {
-        return driver_send_command(device->fd, IMAGING_NSID, buffer_list, timeframe, in_data, in_data_size, out_data,
-                                   out_data_size);
-    } else {
-        return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data,
-                                   out_data_size);
-    }
+    return send_command_with_priority(
+        device,
+        [&]() {
+            if (timeframe) {
+                return driver_send_command(device->fd, IMAGING_NSID, buffer_list, timeframe, in_data, in_data_size,
+                                           out_data, out_data_size);
+            } else {
+                return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data,
+                                           out_data_size);
+            }
+        },
+        timeframe);
 }

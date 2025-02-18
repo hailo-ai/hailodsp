@@ -23,6 +23,9 @@
 
 #pragma once
 
+#include "priority_queue.hpp"
+
 struct dsp_device_internal {
     int fd;
+    priority_t priority;
 };

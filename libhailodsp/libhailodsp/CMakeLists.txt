@@ -38,9 +38,10 @@ add_library(
   src/dewarp.cpp
   src/crop.cpp
   src/gaussian.cpp
-  src/laplacian.cpp)
+  src/laplacian.cpp
+  src/priority_queue.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.6.0)
+set_target_properties(hailodsp PROPERTIES VERSION 1.6.1)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

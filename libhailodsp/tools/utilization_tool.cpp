@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     app.add_flag("-b,--batch", batch_mode,
                  "Batch mode - Starts tool in Batch mode, which could be useful for sending output to other programs "
                  "or to a file. In this mode, the tool will run until the iterations limit you've set with the `-i' "
-                 "command-line option or until killed.");
+                 "command-line option. The last utilization value will be returned as the tool's exit code.");
     app.add_option("-i,--iterations", iteration_count,
                    "Number of iterations - Specifies the maximum number of iterations the tool should produce before "
                    "ending. The default value is 0, which means iterate forever.")
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Open device failed {}", status);
         DSP_RELEASE_DEVICE(device);
-        return 1;
+        return -1;
     }
 
     if (!batch_mode) {
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Get utilization failed {}", status);
         DSP_RELEASE_DEVICE(device);
-        return 1;
+        return -1;
     }
 
     // Loop until we reach the iteration count or forever if iteration count is 0
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
         if (status != DSP_SUCCESS) {
             LOGGER__ERROR("Get utilization failed {}", status);
             DSP_RELEASE_DEVICE(device);
-            return 1;
+            return -1;
         }
 
         if (batch_mode) {
@@ -82,5 +82,5 @@ int main(int argc, char **argv)
     }
 
     DSP_RELEASE_DEVICE(device);
-    return 0;
+    return batch_mode ? utilization : 0;
 }

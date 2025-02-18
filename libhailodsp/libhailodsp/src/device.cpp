@@ -53,6 +53,7 @@ dsp_status dsp_create_device(dsp_device *device)
     }
 
     local_device->fd = fd;
+    local_device->priority = DSP_DEFAULT_DEVICE_PRIORITY;
     *device = local_device;
 
     local_device = NULL;
@@ -85,4 +86,10 @@ dsp_status dsp_release_device(dsp_device device)
 
 l_exit:
     return status;
+}
+
+dsp_status dsp_set_priority(dsp_device device, priority_t priority)
+{
+    device->priority = priority;
+    return DSP_SUCCESS;
 }
