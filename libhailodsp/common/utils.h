@@ -35,7 +35,9 @@ extern "C" {
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-#define ROUND_UP(N, S) ((((N) + (S)-1) / (S)) * (S))
+#define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
+
+#define DIVIDE_AND_CEIL(a, b) (((a) + (b) - 1) / (b))
 
 static const char *format_names[] = {
     [DSP_IMAGE_FORMAT_GRAY8] = "gray8", [DSP_IMAGE_FORMAT_RGB] = "rgb",   [DSP_IMAGE_FORMAT_NV12] = "nv12",
@@ -46,10 +48,48 @@ static const char *format_names[] = {
 static_assert(ARRAY_LENGTH(format_names) == DSP_IMAGE_FORMAT_COUNT,
               "format_names length must be identical to dsp_image_format_t count");
 
+static const char *flip_direction_names[] = {
+    [DSP_FLIP_DIRECTION_NONE] = "none",
+    [DSP_FLIP_DIRECTION_HORIZONTAL] = "horizontal",
+    [DSP_FLIP_DIRECTION_VERTICAL] = "vertical",
+    [DSP_FLIP_DIRECTION_BOTH] = "both",
+};
+
+static_assert(ARRAY_LENGTH(flip_direction_names) == DSP_FLIP_DIRECTION_COUNT,
+              "flip_direction_names length must be identical to dsp_flip_direction_t count");
+
+static const char *rotation_angle_names[] = {
+    [DSP_ROTATION_ANGLE_0] = "0",
+    [DSP_ROTATION_ANGLE_90] = "90",
+    [DSP_ROTATION_ANGLE_180] = "180",
+    [DSP_ROTATION_ANGLE_270] = "270",
+};
+
+static_assert(ARRAY_LENGTH(rotation_angle_names) == DSP_ROTATION_ANGLE_COUNT,
+              "rotation_angle_names length must be identical to dsp_rotation_angle_t count");
+
 __attribute__((unused)) static inline const char *format_arg_to_string(dsp_image_format_t format)
 {
     if (format < ARRAY_LENGTH(format_names)) {
         return format_names[format];
+    } else {
+        return "unknown";
+    }
+}
+
+__attribute__((unused)) static inline const char *flip_direction_to_string(dsp_flip_direction_t direction)
+{
+    if (direction < ARRAY_LENGTH(flip_direction_names)) {
+        return flip_direction_names[direction];
+    } else {
+        return "unknown";
+    }
+}
+
+__attribute__((unused)) static inline const char *rotation_angle_to_string(dsp_rotation_angle_t angle)
+{
+    if (angle < ARRAY_LENGTH(rotation_angle_names)) {
+        return rotation_angle_names[angle];
     } else {
         return "unknown";
     }

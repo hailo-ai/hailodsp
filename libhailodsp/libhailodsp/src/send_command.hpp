@@ -27,11 +27,8 @@
 #include "dsp_tracer.hpp"
 #include "hailo/hailodsp.h"
 #include "user_dsp_interface.h"
-#include "xrp_types.h"
 
 #include <functional>
-
-#include "xrp_kernel_defs.h"
 
 typedef struct {
     const dsp_image_properties_t *user_api_image;

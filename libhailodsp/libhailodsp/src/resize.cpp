@@ -42,23 +42,10 @@ static_assert((int)DSP_LETTERBOX_MIDDLE == (int)INTERFACE_LETTERBOX_MIDDLE,
 static_assert((int)DSP_LETTERBOX_UP_LEFT == (int)INTERFACE_LETTERBOX_UP_LEFT,
               "Interface and internal implementation must have the same number for letterbox up_left");
 
-static_assert((int)DSP_FLIP_DIRECTION_NONE == (int)INTERFACE_FLIP_DIRECTION_NONE,
-              "Interface and internal implementation must have the same number for no flip direction");
-static_assert((int)DSP_FLIP_DIRECTION_HORIZONTAL == (int)INTERFACE_FLIP_DIRECTION_HORIZONTAL,
-              "Interface and internal implementation must have the same number for horizontal flip direction");
-static_assert((int)DSP_FLIP_DIRECTION_VERTICAL == (int)INTERFACE_FLIP_DIRECTION_VERTICAL,
-              "Interface and internal implementation must have the same number for vertical flip direction");
-static_assert((int)DSP_FLIP_DIRECTION_BOTH == (int)INTERFACE_FLIP_DIRECTION_BOTH,
-              "Interface and internal implementation must have the same number for both flip direction");
-
-static_assert((int)DSP_ROTATION_ANGLE_0 == (int)INTERFACE_ROTATION_ANGLE_0,
-              "Interface and internal implementation must have the same number for 0 degrees rotation");
-static_assert((int)DSP_ROTATION_ANGLE_180 == (int)INTERFACE_ROTATION_ANGLE_180,
-              "Interface and internal implementation must have the same number for 180 degrees rotation");
-
 // This function assumes that "image" params is already checked for correctness
 static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image,
-                                             const dsp_privacy_mask_t *privacy_mask_params)
+                                             const dsp_privacy_mask_t *privacy_mask_params,
+                                             bool is_multi_crop_resize)
 {
     // privacy mask is optional
     if (!privacy_mask_params) {
@@ -79,6 +66,29 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
     if (privacy_mask_params->rois_count > MAX_PRIVACY_MASK_ROIS) {
         LOGGER__ERROR("Error: Too many ROIs. The operation supports up to {} ROIs", MAX_PRIVACY_MASK_ROIS);
         return DSP_INVALID_ARGUMENT;
+    }
+
+    if (privacy_mask_params->type >= DSP_PRIVACY_MASK_COUNT) {
+        LOGGER__ERROR("Error: Unknown privacy mask type {}", privacy_mask_params->type);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (privacy_mask_params->type == DSP_PRIVACY_MASK_BLUR) {
+        if (is_multi_crop_resize) {
+            LOGGER__ERROR("Error: Blur privacy mask is not supported for multi crop resize");
+            return DSP_INVALID_ARGUMENT;
+        }
+
+        if (privacy_mask_params->blur_radius < 1 ||
+            privacy_mask_params->blur_radius > DSP_BLUR_PRIVACY_MASK_MAX_RADIUS) {
+            LOGGER__ERROR("Error: blur_radius ({}) must be in the range [1, 64]", privacy_mask_params->blur_radius);
+            return DSP_INVALID_ARGUMENT;
+        }
+
+        if (privacy_mask_params->blur_radius % 2 != 0) {
+            LOGGER__ERROR("Error: blur_radius ({}) must be an even number", privacy_mask_params->blur_radius);
+            return DSP_INVALID_ARGUMENT;
+        }
     }
 
     for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
@@ -169,25 +179,32 @@ static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_pa
         return DSP_SUCCESS;
     }
 
-    if (image_enhancement_params->sharpness < 1 || image_enhancement_params->sharpness > 5) {
-        LOGGER__ERROR("Error: sharpness ({}) must be in the range [1, 5]", image_enhancement_params->sharpness);
+    if (image_enhancement_params->blur.level > 4) {
+        LOGGER__ERROR("Error: blur level ({}) must be in the range [0, 4]", image_enhancement_params->blur.level);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (image_enhancement_params->brightness < -128 || image_enhancement_params->brightness > 128) {
-        LOGGER__ERROR("Error: brightness ({}) must be in the range [-128, 128]", image_enhancement_params->brightness);
+    if (image_enhancement_params->sharpness.level > 3) {
+        LOGGER__ERROR("Error: sharpness level  ({}) must be in the range [0, 3]",
+                      image_enhancement_params->sharpness.level);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (image_enhancement_params->saturation_u_b < -128 || image_enhancement_params->saturation_u_b > 128) {
+    if (image_enhancement_params->color.brightness < -128 || image_enhancement_params->color.brightness > 128) {
+        LOGGER__ERROR("Error: brightness ({}) must be in the range [-128, 128]",
+                      image_enhancement_params->color.brightness);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    if (image_enhancement_params->color.saturation_u_b < -128 || image_enhancement_params->color.saturation_u_b > 128) {
         LOGGER__ERROR("Error: saturation_u_b ({}) must be in the range [-128, 128]",
-                      image_enhancement_params->saturation_u_b);
+                      image_enhancement_params->color.saturation_u_b);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (image_enhancement_params->saturation_v_b < -128 || image_enhancement_params->saturation_v_b > 128) {
+    if (image_enhancement_params->color.saturation_v_b < -128 || image_enhancement_params->color.saturation_v_b > 128) {
         LOGGER__ERROR("Error: saturation_v_b ({}) must be in the range [-128, 128]",
-                      image_enhancement_params->saturation_v_b);
+                      image_enhancement_params->color.saturation_v_b);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -221,6 +238,249 @@ static dsp_status verify_image_enhancement_histogram_params(
     }
 
     return DSP_SUCCESS;
+}
+
+static std::pair<size_t, size_t> adjust_to_aspect_ratio(size_t src_width,
+                                                        size_t src_height,
+                                                        size_t dst_width,
+                                                        size_t dst_height)
+{
+    float src_aspect_ratio = static_cast<float>(src_width) / src_height;
+    float dst_aspect_ratio = static_cast<float>(dst_width) / dst_height;
+
+    size_t new_width, new_height;
+    if (dst_aspect_ratio > src_aspect_ratio) {
+        // adjust height to maintain aspect ratio
+        new_width = dst_width;
+        new_height = std::ceil(dst_width / src_aspect_ratio);
+    } else {
+        // adjust width to maintain aspect ratio
+        new_width = std::ceil(dst_height * src_aspect_ratio);
+        new_height = dst_height;
+    }
+
+    new_width = ROUND_UP(new_width, 2);
+    new_height = ROUND_UP(new_height, 2);
+
+    return {new_width, new_height};
+}
+
+/* Telescopic is only valid if each resolution is less than or equal to the previous one in both width and height */
+dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
+{
+    const dsp_image_properties_t *prev_resolution = nullptr;
+    int i = 0;
+
+    /* Find the first resolution in the list */
+    for (i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
+        if (params->dst[i] != nullptr) {
+            prev_resolution = params->dst[i];
+            break;
+        }
+    }
+
+    if (prev_resolution == nullptr) {
+        LOGGER__ERROR("Error: At least one image destination must be provided");
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    /* Check that each resolution is less than or equal to the previous one */
+    for (; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
+        if (params->dst[i] == nullptr) {
+            continue;
+        }
+
+        if (!params->keep_aspect_ratio[i]) {
+            if (params->dst[i]->width > prev_resolution->width) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})", i,
+                    params->dst[i]->width, prev_resolution->width);
+                return DSP_INVALID_ARGUMENT;
+            }
+            if (params->dst[i]->height > prev_resolution->height) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})", i,
+                    params->dst[i]->height, prev_resolution->height);
+                return DSP_INVALID_ARGUMENT;
+            }
+        } else {
+            auto src_width = params->crop->end_x - params->crop->start_x;
+            auto src_height = params->crop->end_y - params->crop->start_y;
+            auto [prev_width, prev_height] =
+                adjust_to_aspect_ratio(src_width, src_height, prev_resolution->width, prev_resolution->height);
+            auto [width, height] =
+                adjust_to_aspect_ratio(src_width, src_height, params->dst[i]->width, params->dst[i]->height);
+
+            if (width > prev_width) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} (aspect ratio) width ({} -> {}) must be lower or equal to previous "
+                    "resolution width ({} -> {})",
+                    i, params->dst[i]->width, width, prev_resolution->width, prev_width);
+                return DSP_INVALID_ARGUMENT;
+            }
+            if (height > prev_height) {
+                LOGGER__ERROR(
+                    "Error: Resolution {} (aspect ratio) height ({} -> {}) must be lower or equal to previous "
+                    "resolution height ({} -> {})",
+                    i, params->dst[i]->height, height, prev_resolution->height, prev_height);
+                return DSP_INVALID_ARGUMENT;
+            }
+        }
+
+        prev_resolution = params->dst[i];
+    }
+
+    return DSP_SUCCESS;
+}
+
+static dsp_status verify_and_convert_flip_rotate_params(const dsp_flip_rotate_params_t *flip_rotate_params,
+                                                        interface_flip_rotate_t &dsp_flip_rotate)
+{
+    if (!flip_rotate_params) {
+        // flip rotate params are optional
+        dsp_flip_rotate = INTERFACE_FLIP_ROTATE_NONE;
+        return DSP_SUCCESS;
+    }
+
+    switch (flip_rotate_params->rot_ang) {
+        case DSP_ROTATION_ANGLE_0:
+            switch (flip_rotate_params->flip_dir) {
+                case DSP_FLIP_DIRECTION_NONE:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_NONE;
+                    break;
+                case DSP_FLIP_DIRECTION_HORIZONTAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_HORIZONTAL;
+                    break;
+                case DSP_FLIP_DIRECTION_VERTICAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_VERTICAL;
+                    break;
+                case DSP_FLIP_DIRECTION_BOTH:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_180;
+                    break;
+                default:
+                    LOGGER__ERROR("Flip direction {} is not supported", flip_rotate_params->flip_dir);
+                    return DSP_INVALID_ARGUMENT;
+            }
+            break;
+        case DSP_ROTATION_ANGLE_90:
+            switch (flip_rotate_params->flip_dir) {
+                case DSP_FLIP_DIRECTION_NONE:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_90;
+                    break;
+                case DSP_FLIP_DIRECTION_HORIZONTAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_VERTICAL_90;
+                    break;
+                case DSP_FLIP_DIRECTION_VERTICAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_VERTICAL_270;
+                    break;
+                case DSP_FLIP_DIRECTION_BOTH:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_270;
+                    break;
+                default:
+                    LOGGER__ERROR("Flip direction {} is not supported", flip_rotate_params->flip_dir);
+                    return DSP_INVALID_ARGUMENT;
+            }
+            break;
+        case DSP_ROTATION_ANGLE_180:
+            switch (flip_rotate_params->flip_dir) {
+                case DSP_FLIP_DIRECTION_NONE:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_180;
+                    break;
+                case DSP_FLIP_DIRECTION_HORIZONTAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_VERTICAL;
+                    break;
+                case DSP_FLIP_DIRECTION_VERTICAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_HORIZONTAL;
+                    break;
+                case DSP_FLIP_DIRECTION_BOTH:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_NONE;
+                    break;
+                default:
+                    LOGGER__ERROR("Flip direction {} is not supported", flip_rotate_params->flip_dir);
+                    return DSP_INVALID_ARGUMENT;
+            }
+            break;
+
+        case DSP_ROTATION_ANGLE_270:
+            switch (flip_rotate_params->flip_dir) {
+                case DSP_FLIP_DIRECTION_NONE:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_270;
+                    break;
+                case DSP_FLIP_DIRECTION_HORIZONTAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_VERTICAL_270;
+                    break;
+                case DSP_FLIP_DIRECTION_VERTICAL:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_VERTICAL_90;
+                    break;
+                case DSP_FLIP_DIRECTION_BOTH:
+                    dsp_flip_rotate = INTERFACE_FLIP_ROTATE_90;
+                    break;
+                default:
+                    LOGGER__ERROR("Flip direction {} is not supported", flip_rotate_params->flip_dir);
+                    return DSP_INVALID_ARGUMENT;
+            }
+            break;
+        default:
+            LOGGER__ERROR("Rotation angle {} is not supported", flip_rotate_params->rot_ang);
+            return DSP_INVALID_ARGUMENT;
+    }
+    return DSP_SUCCESS;
+}
+
+static void dump_telescopic_parameters(const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
+                                       const dsp_privacy_mask_t *privacy_mask_params,
+                                       const dsp_image_enhancement_params_t *image_enhancement_params,
+                                       const dsp_flip_rotate_params_t *flip_rotate_params)
+{
+    LOGGER__ERROR("Parameters provided:");
+    LOGGER__ERROR("  - src: width={}, height={}", mutli_crop_resize_params->src->width,
+                  mutli_crop_resize_params->src->height);
+
+    for (size_t i = 0; i < mutli_crop_resize_params->crop_resize_params_count; ++i) {
+        const auto &crop_resize = mutli_crop_resize_params->crop_resize_params[i];
+        LOGGER__ERROR("  - crop_resize[{}]: crop(start_x={}, start_y={}, end_x={}, end_y={})", i,
+                      crop_resize.crop->start_x, crop_resize.crop->start_y, crop_resize.crop->end_x,
+                      crop_resize.crop->end_y);
+        for (size_t j = 0; j < DSP_MULTI_RESIZE_OUTPUTS_COUNT; ++j) {
+            if (crop_resize.dst[j]) {
+                LOGGER__ERROR("    - dst[{}]: width={}, height={}, keep_aspect_ratio={}", j, crop_resize.dst[j]->width,
+                              crop_resize.dst[j]->height, crop_resize.keep_aspect_ratio[j]);
+            }
+        }
+    }
+
+    if (privacy_mask_params) {
+        LOGGER__ERROR("  - privacy_mask: type={}, rois_count={}", privacy_mask_params->type,
+                      privacy_mask_params->rois_count);
+        for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
+            const auto &roi = privacy_mask_params->rois[i];
+            LOGGER__ERROR("    - roi[{}]: start_x={}, start_y={}, end_x={}, end_y={}", i, roi.start_x, roi.start_y,
+                          roi.end_x, roi.end_y);
+        }
+    }
+
+    if (image_enhancement_params) {
+        LOGGER__ERROR("  - image_enhancement:");
+        LOGGER__ERROR("    - blur: level={}", image_enhancement_params->blur.level);
+        LOGGER__ERROR("    - sharpness: level={}, amount={}, threshold={}", image_enhancement_params->sharpness.level,
+                      image_enhancement_params->sharpness.amount, image_enhancement_params->sharpness.threshold);
+        LOGGER__ERROR(
+            "    - color: contrast={}, brightness={}, saturation_u_a={}, saturation_u_b={},"
+            " saturation_v_a={}, saturation_v_b={}",
+            image_enhancement_params->color.contrast, image_enhancement_params->color.brightness,
+            image_enhancement_params->color.saturation_u_a, image_enhancement_params->color.saturation_u_b,
+            image_enhancement_params->color.saturation_v_a, image_enhancement_params->color.saturation_v_b);
+        if (image_enhancement_params->histogram_params) {
+            LOGGER__ERROR("    - histogram: x_sample_step={}, y_sample_step={}",
+                          image_enhancement_params->histogram_params->x_sample_step,
+                          image_enhancement_params->histogram_params->y_sample_step);
+        }
+    }
+
+    if (flip_rotate_params) {
+        LOGGER__ERROR("  - flip_rotate: flip_dir={}, rot_ang={}", flip_rotate_params->flip_dir,
+                      flip_rotate_params->rot_ang);
+    }
 }
 
 dsp_status dsp_crop_and_resize_perf(dsp_device device,
@@ -413,7 +673,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     auto &tracer = DspTracer::get_instance();
     task_timeframe_t *timeframe = tracer.start_tracing(IMAGING_OP_MULTI_CROP_AND_RESIZE);
 
-    auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params);
+    auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params, true);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Privacy mask parameters check failed");
         return status;
@@ -533,9 +793,9 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
             privacy_mask_params->bitmask, bitmask_stride * bitmask_height, BufferAccessType::Read);
 
-        in_data->multi_crop_and_resize_args.privacy_mask.y_color = privacy_mask_params->y_color;
-        in_data->multi_crop_and_resize_args.privacy_mask.u_color = privacy_mask_params->u_color;
-        in_data->multi_crop_and_resize_args.privacy_mask.v_color = privacy_mask_params->v_color;
+        in_data->multi_crop_and_resize_args.privacy_mask.color.y = privacy_mask_params->color.y;
+        in_data->multi_crop_and_resize_args.privacy_mask.color.u = privacy_mask_params->color.u;
+        in_data->multi_crop_and_resize_args.privacy_mask.color.v = privacy_mask_params->color.v;
 
         in_data->multi_crop_and_resize_args.privacy_mask.rois_count = privacy_mask_params->rois_count;
         for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
@@ -574,99 +834,6 @@ dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
     return dsp_multi_crop_and_resize_perf(device, mutli_crop_resize_params, privacy_mask_params, NULL);
 }
 
-static std::pair<size_t, size_t> adjust_to_aspect_ratio(size_t src_width,
-                                                        size_t src_height,
-                                                        size_t dst_width,
-                                                        size_t dst_height)
-{
-    float src_aspect_ratio = static_cast<float>(src_width) / src_height;
-    float dst_aspect_ratio = static_cast<float>(dst_width) / dst_height;
-
-    size_t new_width, new_height;
-    if (dst_aspect_ratio > src_aspect_ratio) {
-        // adjust height to maintain aspect ratio
-        new_width = dst_width;
-        new_height = std::ceil(dst_width / src_aspect_ratio);
-    } else {
-        // adjust width to maintain aspect ratio
-        new_width = std::ceil(dst_height * src_aspect_ratio);
-        new_height = dst_height;
-    }
-
-    new_width = ROUND_UP(new_width, 2);
-    new_height = ROUND_UP(new_height, 2);
-
-    return {new_width, new_height};
-}
-
-/* Telescopic is only valid if each resolution is less than or equal to the previous one in both width and height */
-dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
-{
-    const dsp_image_properties_t *prev_resolution = nullptr;
-    int i = 0;
-
-    /* Find the first resolution in the list */
-    for (i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
-        if (params->dst[i] != nullptr) {
-            prev_resolution = params->dst[i];
-            break;
-        }
-    }
-
-    if (prev_resolution == nullptr) {
-        LOGGER__ERROR("Error: At least one image destination must be provided");
-        return DSP_INVALID_ARGUMENT;
-    }
-
-    /* Check that each resolution is less than or equal to the previous one */
-    for (; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
-        if (params->dst[i] == nullptr) {
-            continue;
-        }
-
-        if (!params->keep_aspect_ratio) {
-            if (params->dst[i]->width > prev_resolution->width) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})", i,
-                    params->dst[i]->width, prev_resolution->width);
-                return DSP_INVALID_ARGUMENT;
-            }
-            if (params->dst[i]->height > prev_resolution->height) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})", i,
-                    params->dst[i]->height, prev_resolution->height);
-                return DSP_INVALID_ARGUMENT;
-            }
-        } else {
-            auto src_width = params->crop->end_x - params->crop->start_x;
-            auto src_height = params->crop->end_y - params->crop->start_y;
-            auto [prev_width, prev_height] =
-                adjust_to_aspect_ratio(src_width, src_height, prev_resolution->width, prev_resolution->height);
-            auto [width, height] =
-                adjust_to_aspect_ratio(src_width, src_height, params->dst[i]->width, params->dst[i]->height);
-
-            if (width > prev_width) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} (aspect ratio) width ({} -> {}) must be lower or equal to previous "
-                    "resolution width ({} -> {})",
-                    i, params->dst[i]->width, width, prev_resolution->width, prev_width);
-                return DSP_INVALID_ARGUMENT;
-            }
-            if (height > prev_height) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} (aspect ratio) height ({} -> {}) must be lower or equal to previous "
-                    "resolution height ({} -> {})",
-                    i, params->dst[i]->height, height, prev_resolution->height, prev_height);
-                return DSP_INVALID_ARGUMENT;
-            }
-        }
-
-        prev_resolution = params->dst[i];
-    }
-
-    return DSP_SUCCESS;
-}
-
 dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
                                                      const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
                                                      const dsp_privacy_mask_t *privacy_mask_params,
@@ -685,7 +852,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     auto &tracer = DspTracer::get_instance();
     task_timeframe_t *timeframe = tracer.start_tracing(imaging_op);
 
-    auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params);
+    auto status = verify_privacy_mask_params(mutli_crop_resize_params->src, privacy_mask_params, false);
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Privacy mask parameters check failed");
         return status;
@@ -717,10 +884,20 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = false;
-    in_data->multi_crop_and_resize_args.flip_rotate.enabled = false;
+    in_data->multi_crop_and_resize_args.flip_rotate = INTERFACE_FLIP_ROTATE_NONE;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
     in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
     in_data->operation = imaging_op;
+
+    status = verify_and_convert_flip_rotate_params(
+        flip_rotate_params,
+        reinterpret_cast<interface_flip_rotate_t &>(in_data->multi_crop_and_resize_args.flip_rotate));
+    if (status != DSP_SUCCESS) {
+        LOGGER__ERROR("Error: Flip rotate parameters check failed");
+        return status;
+    }
+    bool is_rotated = flip_rotate_params && (flip_rotate_params->rot_ang == DSP_ROTATION_ANGLE_90 ||
+                                             flip_rotate_params->rot_ang == DSP_ROTATION_ANGLE_270);
 
     std::vector<command_image_t> images;
     images.reserve(1 + MAX_MULTI_RESIZE_OUTPUTS * mutli_crop_resize_params->crop_resize_params_count);
@@ -734,17 +911,25 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         auto crop_and_resize_params = &mutli_crop_resize_params->crop_resize_params[j];
         auto crop_and_resize_args = &in_data->multi_crop_and_resize_args.multi_resizes[j];
 
-        auto status = verify_crop_params(mutli_crop_resize_params->src, crop_and_resize_params->crop);
+        // crop params are matching the input image post flip rotate transformation
+        // when rotate 90 or 270, the input image dimension are rotated with respect to the crop params
+        // so we rotate the crop params before verifying them
+        dsp_roi_t nonrotated_crop = *crop_and_resize_params->crop;
+        if (is_rotated) {
+            std::swap(nonrotated_crop.start_x, nonrotated_crop.start_y);
+            std::swap(nonrotated_crop.end_x, nonrotated_crop.end_y);
+        }
+        status = verify_crop_params(mutli_crop_resize_params->src, &nonrotated_crop);
         if (status != DSP_SUCCESS) {
             LOGGER__ERROR("Error: Crop parameters check failed for crop&resize[{}]", j);
             return status;
         }
 
-        dsp_image_properties_t cropped_src = *mutli_crop_resize_params->src;
-        cropped_src.width = crop_and_resize_params->crop->end_x - crop_and_resize_params->crop->start_x;
-        cropped_src.height = crop_and_resize_params->crop->end_y - crop_and_resize_params->crop->start_y;
+        dsp_image_properties_t nonrotated_cropped_src = *mutli_crop_resize_params->src;
+        nonrotated_cropped_src.width = nonrotated_crop.end_x - nonrotated_crop.start_x;
+        nonrotated_cropped_src.height = nonrotated_crop.end_y - nonrotated_crop.start_y;
 
-        status = verify_image_properties(&cropped_src);
+        status = verify_image_properties(&nonrotated_cropped_src);
         if (status != DSP_SUCCESS) {
             LOGGER__ERROR("Error: Image properties check failed for src[{}] (after crop)", j);
             return status;
@@ -756,7 +941,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
             return status;
         }
 
-        status = verify_image_enhancement_histogram_params(image_enhancement_params, &cropped_src);
+        status = verify_image_enhancement_histogram_params(image_enhancement_params, &nonrotated_cropped_src);
         if (status != DSP_SUCCESS) {
             LOGGER__ERROR("Error: Image enhancement histogram params check failed for crop[{}]", j);
             return status;
@@ -781,12 +966,15 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
                 return DSP_INVALID_ARGUMENT;
             }
 
-            status = verify_resize_scaling(cropped_src.width, cropped_src.height, dst_image->width, dst_image->height,
-                                           MULTI_CROP_RESIZE_MAX_SCALE);
+            status = verify_resize_scaling(crop_and_resize_params->crop->end_x - crop_and_resize_params->crop->start_x,
+                                           crop_and_resize_params->crop->end_y - crop_and_resize_params->crop->start_y,
+                                           dst_image->width, dst_image->height, MULTI_CROP_RESIZE_MAX_SCALE);
             if (status != DSP_SUCCESS) {
                 LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]", j, i);
                 return status;
             }
+
+            crop_and_resize_args->keep_aspect_ratio[dst_count] = crop_and_resize_params->keep_aspect_ratio[i];
 
             images.emplace_back(command_image_t{
                 .user_api_image = dst_image,
@@ -802,7 +990,6 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         crop_and_resize_args->crop.start_y = crop_and_resize_params->crop->start_y;
         crop_and_resize_args->crop.end_x = crop_and_resize_params->crop->end_x;
         crop_and_resize_args->crop.end_y = crop_and_resize_params->crop->end_y;
-        crop_and_resize_args->keep_aspect_ratio = crop_and_resize_params->keep_aspect_ratio;
     }
 
     BufferList buffer_list;
@@ -823,9 +1010,14 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
             privacy_mask_params->bitmask, bitmask_stride * bitmask_height, BufferAccessType::Read);
 
-        in_data->multi_crop_and_resize_args.privacy_mask.y_color = privacy_mask_params->y_color;
-        in_data->multi_crop_and_resize_args.privacy_mask.u_color = privacy_mask_params->u_color;
-        in_data->multi_crop_and_resize_args.privacy_mask.v_color = privacy_mask_params->v_color;
+        in_data->multi_crop_and_resize_args.privacy_mask.type = (privacy_mask_type_in_data_t)privacy_mask_params->type;
+        if (privacy_mask_params->type == DSP_PRIVACY_MASK_COLOR) {
+            in_data->multi_crop_and_resize_args.privacy_mask.color.y = privacy_mask_params->color.y;
+            in_data->multi_crop_and_resize_args.privacy_mask.color.u = privacy_mask_params->color.u;
+            in_data->multi_crop_and_resize_args.privacy_mask.color.v = privacy_mask_params->color.v;
+        } else {
+            in_data->multi_crop_and_resize_args.privacy_mask.blur_radius = privacy_mask_params->blur_radius;
+        }
 
         in_data->multi_crop_and_resize_args.privacy_mask.rois_count = privacy_mask_params->rois_count;
         for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
@@ -838,13 +1030,20 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
     if (image_enhancement_params) {
         in_data->multi_crop_and_resize_args.image_enhancement.enabled = true;
-        in_data->multi_crop_and_resize_args.image_enhancement.sharpness = image_enhancement_params->sharpness;
-        in_data->multi_crop_and_resize_args.image_enhancement.contrast = image_enhancement_params->contrast;
-        in_data->multi_crop_and_resize_args.image_enhancement.brightness = image_enhancement_params->brightness;
-        in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_a = image_enhancement_params->saturation_u_a;
-        in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_b = image_enhancement_params->saturation_u_b;
-        in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_a = image_enhancement_params->saturation_v_a;
-        in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_b = image_enhancement_params->saturation_v_b;
+        in_data->multi_crop_and_resize_args.image_enhancement.blur = image_enhancement_params->blur.level;
+        in_data->multi_crop_and_resize_args.image_enhancement.sharpness = image_enhancement_params->sharpness.level;
+        in_data->multi_crop_and_resize_args.image_enhancement.amount = image_enhancement_params->sharpness.amount;
+        in_data->multi_crop_and_resize_args.image_enhancement.threshold = image_enhancement_params->sharpness.threshold;
+        in_data->multi_crop_and_resize_args.image_enhancement.contrast = image_enhancement_params->color.contrast;
+        in_data->multi_crop_and_resize_args.image_enhancement.brightness = image_enhancement_params->color.brightness;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_a =
+            image_enhancement_params->color.saturation_u_a;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_u_b =
+            image_enhancement_params->color.saturation_u_b;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_a =
+            image_enhancement_params->color.saturation_v_a;
+        in_data->multi_crop_and_resize_args.image_enhancement.saturation_v_b =
+            image_enhancement_params->color.saturation_v_b;
 
         if (image_enhancement_params->histogram_params) {
             in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = true;
@@ -863,14 +1062,6 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
         }
     }
 
-    if (flip_rotate_params) {
-        in_data->multi_crop_and_resize_args.flip_rotate.enabled = true;
-        in_data->multi_crop_and_resize_args.flip_rotate.flip_direction =
-            (interface_flip_direction_t)flip_rotate_params->flip_dir;
-        in_data->multi_crop_and_resize_args.flip_rotate.rotation_angle =
-            (interface_rotation_angle_t)flip_rotate_params->rot_ang;
-    }
-
     size_t perf_info_size = perf_info ? sizeof(*perf_info) : 0;
     status = send_command(device, buffer_list, in_data.get(), sizeof(imaging_request_t), perf_info, perf_info_size,
                           timeframe);
@@ -882,6 +1073,10 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing resize operation. Error code: {}", status);
+        if (status == DSP_RUN_COMMAND_FAILED) {
+            dump_telescopic_parameters(mutli_crop_resize_params, privacy_mask_params, image_enhancement_params,
+                                       flip_rotate_params);
+        }
     }
 
     return status;

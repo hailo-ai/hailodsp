@@ -84,6 +84,23 @@ enum dsp_interface_image_format {
     INTERFACE_IMAGE_FORMAT_COUNT
 };
 
+/** Color parameters */
+typedef union {
+    struct {
+        uint8_t gray;
+    };
+    struct {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+    };
+    struct {
+        uint8_t y;
+        uint8_t u;
+        uint8_t v;
+    };
+} color_t;
+
 /** Letterbox aligment types */
 typedef enum {
     INTERFACE_NO_LETTERBOX = 0,  /**< No letterbox resizing is performed */
@@ -92,16 +109,15 @@ typedef enum {
 } interface_letterbox_alignment_t;
 
 typedef enum {
-    INTERFACE_FLIP_DIRECTION_NONE = 0,
-    INTERFACE_FLIP_DIRECTION_HORIZONTAL,
-    INTERFACE_FLIP_DIRECTION_VERTICAL,
-    INTERFACE_FLIP_DIRECTION_BOTH
-} interface_flip_direction_t;
-
-typedef enum {
-    INTERFACE_ROTATION_ANGLE_0 = 0,
-    INTERFACE_ROTATION_ANGLE_180 = 2,
-} interface_rotation_angle_t;
+    INTERFACE_FLIP_ROTATE_NONE = 0,
+    INTERFACE_FLIP_ROTATE_90,
+    INTERFACE_FLIP_ROTATE_180,
+    INTERFACE_FLIP_ROTATE_270,
+    INTERFACE_FLIP_ROTATE_HORIZONTAL,
+    INTERFACE_FLIP_ROTATE_VERTICAL_90,
+    INTERFACE_FLIP_ROTATE_VERTICAL,
+    INTERFACE_FLIP_ROTATE_VERTICAL_270,
+} interface_flip_rotate_t;
 
 typedef struct {
     uint32_t xrp_buffer_index;
@@ -124,12 +140,19 @@ typedef struct {
     uint32_t end_y;
 } roi_in_data_t;
 
+typedef enum {
+    INTERFACE_PRIVACY_MASK_COLOR,
+    INTERFACE_PRIVACY_MASK_BLUR,
+} privacy_mask_type_in_data_t;
+
 typedef struct {
     uint8_t enabled;
     data_plane_t bitmask;
-    uint8_t y_color;
-    uint8_t u_color;
-    uint8_t v_color;
+    privacy_mask_type_in_data_t type;
+    union {
+        color_t color;
+        uint32_t blur_radius;
+    };
     roi_in_data_t rois[MAX_PRIVACY_MASK_ROIS];
     uint32_t rois_count;
 } privacy_mask_in_data_t;
@@ -143,7 +166,10 @@ typedef struct {
 
 typedef struct {
     uint8_t enabled;
+    uint8_t blur;
     uint8_t sharpness;
+    float amount;
+    uint8_t threshold;
     float contrast;
     int16_t brightness;
     float saturation_u_a;
@@ -152,23 +178,6 @@ typedef struct {
     int16_t saturation_v_b;
     image_enhancement_histogram_in_data_t histogram;
 } image_enhancement_in_data_t;
-
-/** Color parameters */
-typedef union {
-    struct {
-        uint8_t gray;
-    };
-    struct {
-        uint8_t r;
-        uint8_t g;
-        uint8_t b;
-    };
-    struct {
-        uint8_t y;
-        uint8_t u;
-        uint8_t v;
-    };
-} color_t;
 
 /** Letterbox properties */
 typedef struct {
@@ -189,15 +198,9 @@ typedef struct {
 typedef struct {
     roi_in_data_t crop;
     image_properties_t dst[MAX_MULTI_RESIZE_OUTPUTS];
+    uint8_t keep_aspect_ratio[MAX_MULTI_RESIZE_OUTPUTS];
     uint8_t dst_count;
-    uint8_t keep_aspect_ratio;
 } multi_resize_in_data_t;
-
-typedef struct {
-    uint8_t enabled;
-    uint8_t flip_direction;
-    uint8_t rotation_angle;
-} flip_rotate_in_data_t;
 
 typedef struct {
     image_properties_t src;
@@ -206,7 +209,7 @@ typedef struct {
     uint8_t interpolation;
     privacy_mask_in_data_t privacy_mask;
     image_enhancement_in_data_t image_enhancement;
-    flip_rotate_in_data_t flip_rotate;
+    uint8_t flip_rotate;
 } multi_crop_resize_in_data_t;
 
 typedef struct {
@@ -380,27 +383,22 @@ typedef struct {
 } rot_dis_dewarp_perf_info_t;
 
 typedef struct {
-    uint32_t y_plane_total;
-    uint32_t uv_plane_total;
-    uint32_t y_dma_in_config;
-    uint32_t uv_dma_in_config;
-    uint32_t y_dma_out_config;
-    uint32_t uv_dma_out_config;
-    uint32_t y_dma_in_wait;
-    uint32_t uv_dma_in_wait;
-    uint32_t y_dma_out_wait;
-    uint32_t uv_dma_out_wait;
+    uint32_t plane_total[2];
+    uint32_t dma_in_config[2];
+    uint32_t dma_out_config[2];
+    uint32_t dma_in_wait[2];
+    uint32_t dma_out_wait[2];
     uint32_t bitmask_dma_in;
-    uint32_t y_privacy_mask;
-    uint32_t uv_privacy_mask;
+    uint32_t privacy_mask[2];
     uint32_t histogram;
     uint32_t histogram_dma_out;
+    uint32_t y_blur_filter;
+    uint32_t y_sharpness_blur;
+    uint32_t y_sharpness_mask;
     uint32_t y_sharpness_filter;
     uint32_t y_contrast_brightness;
-    uint32_t y_image_enhancement;
-    uint32_t uv_image_enhancement;
-    uint32_t y_flip_rotate;
-    uint32_t uv_flip_rotate;
+    uint32_t image_enhancement[2];
+    uint32_t flip_rotate[2];
 } telescopic_mutli_resize_perf_info_t;
 
 typedef struct {
@@ -428,9 +426,13 @@ typedef struct {
     int32_t operation;
     uint64_t base_address;
     uint8_t use_random_pattern;
+    uint8_t use_random_address;
     uint32_t mask;
     uint32_t pattern[DDR_TRAFFIC_MAX_PATTERN_SIZE];
     uint32_t pattern_size;
+    uint32_t rand_seed;
+    uint32_t rand_addr_start;
+    uint32_t rand_addr_end;
 } ddr_traffic_request_t;
 
 #pragma pack(pop)

@@ -86,10 +86,16 @@ class PriorityQueueSingleton : public PriorityQueue {
    public:
     static std::unique_ptr<PriorityQueueSingleton> &get_instance()
     {
-        static std::unique_ptr<PriorityQueueSingleton> instance = nullptr;
+        static std::unique_ptr<PriorityQueueSingleton> instance;
+        static std::mutex instance_mutex;
+
         if (!instance) {
-            instance = std::make_unique<PriorityQueueSingleton>();
+            std::lock_guard<std::mutex> lock(instance_mutex);
+            if (!instance) {
+                instance = std::make_unique<PriorityQueueSingleton>();
+            }
         }
+        assert(instance != nullptr);
         return instance;
     }
     PriorityQueueSingleton();

@@ -23,10 +23,16 @@
 
 #pragma once
 
-#include "hailo/hailodsp.h"
 #include "logger_macros.hpp"
 
+#include <cerrno>
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
 #include <memory>
+
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 
 template <typename T>
 class ThreadLocalBuffer {
@@ -36,22 +42,32 @@ class ThreadLocalBuffer {
         thread_local ThreadLocalBuffer instance;
 
         if (!instance.m_memory) {
-            auto status = dsp_create_device(&instance.m_device);
-            if (status != DSP_SUCCESS) {
-                LOGGER__ERROR("Failed to open device {}", status);
+            auto dma_heap_fd = file_descriptor(new int(open("/dev/dma_heap/linux,cma", O_RDWR)), &close_deleter);
+            if (*dma_heap_fd < 0) {
+                LOGGER__ERROR("Failed to open dma heap: {}", strerror(errno));
                 return nullptr;
             }
 
-            void *memory;
-            status = dsp_create_buffer(instance.m_device, sizeof(T), &memory);
-            if (status != DSP_SUCCESS) {
-                LOGGER__ERROR("Failed to allocate memory {}", status);
+            struct dma_heap_allocation_data alloc_data = {
+                .len = sizeof(T),
+                .fd_flags = O_RDWR | O_CLOEXEC,
+            };
+
+            int ret = ioctl(*dma_heap_fd, DMA_HEAP_IOCTL_ALLOC, &alloc_data);
+            if (ret < 0) {
+                LOGGER__ERROR("Failed to allocate dma heap buffer: {}", strerror(errno));
                 return nullptr;
             }
 
-            auto empty_deleter = [](__attribute__((unused)) T *memory) {};
+            instance.m_fd = file_descriptor(new int(alloc_data.fd), &close_deleter);
 
-            instance.m_memory = std::shared_ptr<T>(static_cast<T *>(memory), empty_deleter);
+            void *memory = mmap(NULL, sizeof(T), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, *instance.m_fd, 0);
+            if (memory == MAP_FAILED) {
+                LOGGER__ERROR("Failed to mmap memory: {}", strerror(errno));
+                return nullptr;
+            }
+
+            instance.m_memory = std::shared_ptr<T>(static_cast<T *>(memory), &unmap_deleter);
         }
 
         return instance.m_memory;
@@ -63,15 +79,31 @@ class ThreadLocalBuffer {
     ThreadLocalBuffer &operator=(const ThreadLocalBuffer &&) = delete;
 
    private:
+    static void close_deleter(int *fd)
+    {
+        if (fd) {
+            (void)close(*fd);
+            delete fd;
+        }
+    }
+
+    static void unmap_deleter(T *memory)
+    {
+        if (memory) {
+            (void)munmap(memory, sizeof(T));
+        }
+    }
+
+    using file_descriptor = std::unique_ptr<int, decltype(&ThreadLocalBuffer::close_deleter)>;
+
+    file_descriptor m_fd = file_descriptor(nullptr, &close_deleter);
     std::shared_ptr<T> m_memory;
-    dsp_device m_device;
 
     ThreadLocalBuffer() = default;
     ~ThreadLocalBuffer()
     {
-        if (m_memory) {
-            (void)dsp_release_buffer(m_device, m_memory.get());
-            (void)dsp_release_device(m_device);
-        }
+        // unmap memory before closing the file descriptor
+        m_memory.reset();
+        m_fd.reset();
     }
 };

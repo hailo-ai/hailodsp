@@ -393,10 +393,11 @@ typedef struct {
     /**
      * If false, the entire \p crop will be resized to fit each destination resolution.
      * If true, the field of view will be reduced to maintain the \p crop aspect ratio for destination resolutions with
-     * a different aspect ratio.
+     * a different aspect ratio. Each index in the array corresponds to the dst images array,
+     * e.g. keep_aspect_ratio[2] corresponds to dst[2].
      * @note This field takes effect only in the dsp_telescopic_multi_crop_and_resize API family
      */
-    bool keep_aspect_ratio;
+    bool keep_aspect_ratio[DSP_MULTI_RESIZE_OUTPUTS_COUNT];
 } dsp_crop_resize_params_t;
 
 /** Multi-Resize parameters */
@@ -417,6 +418,20 @@ typedef struct {
 } dsp_multi_crop_resize_params_t;
 
 /** Privacy-Mask parameters */
+#define DSP_BLUR_PRIVACY_MASK_MAX_RADIUS (64)
+
+typedef enum {
+    /** Apply a color to the privacy mask */
+    DSP_PRIVACY_MASK_COLOR,
+    /** Apply a blur to the privacy mask */
+    DSP_PRIVACY_MASK_BLUR,
+
+    /* Must be last */
+    DSP_PRIVACY_MASK_COUNT,
+    /** Max enum value to maintain ABI Integrity */
+    DSP_PRIVACY_MASK_MAX_ENUM = DSP_MAX_ENUM
+} dsp_privacy_mask_type_t;
+
 typedef struct {
     /**
      * Bitmask to specify which pixels are part of the privacy mask and therefore need to be colored
@@ -427,22 +442,58 @@ typedef struct {
      * This padding is ignored and only the actual bitmask width is used
      */
     uint8_t *bitmask;
-
-    /** YUV color (same color for all polygons) */
-    uint8_t y_color;
-    uint8_t u_color;
-    uint8_t v_color;
-
+    /** The type of the privacy mask */
+    dsp_privacy_mask_type_t type;
+    union {
+        /** Color to apply to the privacy mask (only if type is ::DSP_PRIVACY_MASK_COLOR) */
+        dsp_color_t color;
+        /** Blur radius to apply to the privacy mask (only if type is ::DSP_PRIVACY_MASK_BLUR)
+         * @note Supported blur radius is between 1 and ::DSP_BLUR_PRIVACY_MASK_MAX_RADIUS and must be even */
+        size_t blur_radius;
+    };
     /**
-     * Since the bitmask convers the entire input image, it's advisable to specify a ractangular ROI surrounding each
-     * Polygon. This will allow the DSP to ignore coloring the pixels outside the ROI, and thus improve performance. For
-     * simpler (and slower) usage, it is possible to pass 1 ROI which covers the entire image
-     * @note The ROI coordinates are for a 4x4 quantized image
-     * @note Supports between 1 and 8 \p rois
+     * Since the bitmask covers the entire input image, it's advisable to specify a rectangular ROI surrounding each
+     * polygon. This will allow the DSP to ignore coloring the pixels outside the ROI, and thus improve performance. For
+     * simpler (and slower) usage, it is possible to pass 1 ROI which covers the entire image.
+     * @note The ROI coordinates are for a 4x4 quantized image.
+     * @note Supports between 1 and 8 \p rois.
      */
     dsp_roi_t *rois;
     size_t rois_count;
 } dsp_privacy_mask_t;
+
+/** Image enhancement blur parameters */
+typedef struct {
+    /** Blur level. Values are in the range of [0, 4]. 0 means most sharp, 4 means most blurry. */
+    uint8_t level;
+} dsp_image_enhancement_blur_t;
+
+/** Image enhancement sharpness parameters */
+typedef struct {
+    /** Sharpness level. Values are in the range of [0, 3]. 0 means most blurry, 3 means most sharp. */
+    uint8_t level;
+    /** Sharpness edge enhancement factor. */
+    float amount;
+    /** Sharpness noise threshold. */
+    uint8_t threshold;
+} dsp_image_enhancement_sharpness_t;
+
+/** Image enhancement color parameters */
+typedef struct {
+    /** Contrast value. 1.0 means no change. */
+    float contrast;
+    /** Brightness value. Values are in the range of [-128, 128]. 0 means no change. */
+    int16_t brightness;
+    /** Saturation parameter for U channel. 1.0 means no change. */
+    float saturation_u_a;
+    /** Saturation parameter for U channel. Valid range is [-128, 128]. 0 means no change. */
+    int16_t saturation_u_b;
+    /** Saturation parameter for V channel. 1.0 means no change. */
+    float saturation_v_a;
+    /** Saturation parameter for V channel. Valid range is [-128, 128]. 0 means no change. */
+    int16_t saturation_v_b;
+} dsp_image_enhancement_color_t;
+
 /**
  * Structure representing a histogram of the Y channel
  * The sparsity of the sampling is configurable - both horizontally and vertically
@@ -466,20 +517,12 @@ typedef struct {
  * (for each pixel in UV channel)
  */
 typedef struct {
-    /** Sharpness level. Values are in the range of [1, 5]. 1 means most blurry, 5 means most sharp. */
-    uint8_t sharpness;
-    /** Contrast value. 1.0 means no change. */
-    float contrast;
-    /** Brightness value. Values are in the range of [-128, 128]. 0 means no change. */
-    int16_t brightness;
-    /** Saturation parameter for U channel. 1.0 means no change. */
-    float saturation_u_a;
-    /** Saturation parameter for U channel. Valid range is [-128, 128]. 0 means no change. */
-    int16_t saturation_u_b;
-    /** Saturation parameter for V channel. 1.0 means no change. */
-    float saturation_v_a;
-    /** Saturation parameter for V channel. Valid range is [-128, 128]. 0 means no change. */
-    int16_t saturation_v_b;
+    /** Blur settings. */
+    dsp_image_enhancement_blur_t blur;
+    /** Sharpness settings. */
+    dsp_image_enhancement_sharpness_t sharpness;
+    /** Color settings. */
+    dsp_image_enhancement_color_t color;
     /** Optional pointer to ::dsp_image_enhancement_histogram_t. May be NULL.
      *  If present, the DSP will generate a histogram of the Y channel values and fill this structure.
      * @note Histogram is supported only for a single crop (see ::dsp_multi_crop_resize_params_t). */
@@ -491,13 +534,19 @@ typedef enum {
     DSP_FLIP_DIRECTION_HORIZONTAL,
     DSP_FLIP_DIRECTION_VERTICAL,
     DSP_FLIP_DIRECTION_BOTH,
+    /* Must be last */
+    DSP_FLIP_DIRECTION_COUNT,
     /** Max enum value to maintain ABI Integrity */
     DSP_FLIP_DIRECTION_MAX = DSP_MAX_ENUM
 } dsp_flip_direction_t;
 
 typedef enum {
     DSP_ROTATION_ANGLE_0 = 0,
-    DSP_ROTATION_ANGLE_180 = 2,
+    DSP_ROTATION_ANGLE_90,
+    DSP_ROTATION_ANGLE_180,
+    DSP_ROTATION_ANGLE_270,
+    /* Must be last */
+    DSP_ROTATION_ANGLE_COUNT,
     /** Max enum value to maintain ABI Integrity */
     DSP_ROTATION_ANGLE_MAX = DSP_MAX_ENUM
 } dsp_rotation_angle_t;

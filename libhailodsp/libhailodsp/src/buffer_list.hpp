@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include "xrp_types.h"
-
 #include <hailo/hailodsp.h>
 #include <vector>
 
@@ -53,9 +51,9 @@ class BufferList {
     int add_plane(const dsp_data_plane_t &plane, BufferAccessType access_type, dsp_memory_type_t memory_type)
     {
         struct xrp_ioctl_buffer buffer = {
-            .flags = static_cast<__u32>(access_type),
-            .size = static_cast<__u32>(plane.bytesused),
-            .memory_type = static_cast<__u32>(memory_type),
+            .flags = static_cast<uint32_t>(access_type),
+            .size = static_cast<uint32_t>(plane.bytesused),
+            .memory_type = static_cast<uint32_t>(memory_type),
         };
 
         if (memory_type == DSP_MEMORY_TYPE_USERPTR) {
@@ -71,8 +69,8 @@ class BufferList {
     int add_buffer(const void *buffer, size_t size, BufferAccessType access_type)
     {
         buffers.emplace_back((struct xrp_ioctl_buffer){
-            .flags = static_cast<__u32>(access_type),
-            .size = static_cast<__u32>(size),
+            .flags = static_cast<uint32_t>(access_type),
+            .size = static_cast<uint32_t>(size),
             .memory_type = XRP_MEMORY_TYPE_USERPTR,
             .addr = reinterpret_cast<uintptr_t>(buffer),
         });
@@ -82,8 +80,8 @@ class BufferList {
     int add_buffer(int fd, size_t size, BufferAccessType access_type)
     {
         buffers.emplace_back((struct xrp_ioctl_buffer){
-            .flags = static_cast<__u32>(access_type),
-            .size = static_cast<__u32>(size),
+            .flags = static_cast<uint32_t>(access_type),
+            .size = static_cast<uint32_t>(size),
             .memory_type = XRP_MEMORY_TYPE_DMABUF,
             .fd = fd,
         });
