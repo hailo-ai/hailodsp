@@ -41,7 +41,7 @@ add_library(
   src/laplacian.cpp
   src/priority_queue.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.7.0)
+set_target_properties(hailodsp PROPERTIES VERSION 1.7.1)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218
