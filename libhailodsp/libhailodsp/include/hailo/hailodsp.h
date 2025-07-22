@@ -35,6 +35,7 @@ extern "C" {
 
 #define DSP_MAX_ENUM (INT_MAX)
 #define DSP_DEFAULT_DEVICE_PRIORITY (0)
+#define DSP_HISTOGRAM_SIZE (256)
 
 /**
  *  @defgroup status DSP Status codes
@@ -419,12 +420,14 @@ typedef struct {
 
 /** Privacy-Mask parameters */
 #define DSP_BLUR_PRIVACY_MASK_MAX_RADIUS (64)
+#define DSP_PIXELIZATION_PRIVACY_MASK_MAX_SIZE (DSP_BLUR_PRIVACY_MASK_MAX_RADIUS)
 
 typedef enum {
     /** Apply a color to the privacy mask */
     DSP_PRIVACY_MASK_COLOR,
-    /** Apply a blur to the privacy mask */
+    /** Apply pixelization to the privacy mask */
     DSP_PRIVACY_MASK_BLUR,
+    DSP_PRIVACY_MASK_PIXELIZATION = DSP_PRIVACY_MASK_BLUR,
 
     /* Must be last */
     DSP_PRIVACY_MASK_COUNT,
@@ -468,6 +471,14 @@ typedef struct {
     uint8_t level;
 } dsp_image_enhancement_blur_t;
 
+/** Image enhancement bilateral parameters */
+typedef struct {
+    /** Whether to apply bilateral filter or not. */
+    bool enabled;
+    /** Bilateral sigma in the color space. Values are in the range of [0, 255]. */
+    uint8_t sigma_color;
+} dsp_image_enhancement_bilateral_t;
+
 /** Image enhancement sharpness parameters */
 typedef struct {
     /** Sharpness level. Values are in the range of [0, 3]. 0 means most blurry, 3 means most sharp. */
@@ -504,8 +515,16 @@ typedef struct {
     /** Interval for sampling along the Y axis */
     uint16_t y_sample_step;
     /** Histogram of Y pixels. histogram[value] = count */
-    uint32_t histogram[256];
+    uint32_t histogram[DSP_HISTOGRAM_SIZE];
 } dsp_image_enhancement_histogram_t;
+
+/**
+ * Structure representing the histogram equalization parameters of the Y channel
+ */
+typedef struct {
+    /** The Look Up Table for the Histogram Equalization algorithm */
+    uint8_t lut[DSP_HISTOGRAM_SIZE];
+} dsp_histogram_equalization_params_t;
 
 /**
  * Structure representing image enhancement parameters for DSP
@@ -519,6 +538,8 @@ typedef struct {
 typedef struct {
     /** Blur settings. */
     dsp_image_enhancement_blur_t blur;
+    /** Bilateral settings. */
+    dsp_image_enhancement_bilateral_t bilateral;
     /** Sharpness settings. */
     dsp_image_enhancement_sharpness_t sharpness;
     /** Color settings. */
@@ -527,6 +548,8 @@ typedef struct {
      *  If present, the DSP will generate a histogram of the Y channel values and fill this structure.
      * @note Histogram is supported only for a single crop (see ::dsp_multi_crop_resize_params_t). */
     dsp_image_enhancement_histogram_t *histogram_params;
+    /** Histogram equalization settings. */
+    const dsp_histogram_equalization_params_t *histogram_equalization_params;
 } dsp_image_enhancement_params_t;
 
 typedef enum {
@@ -690,6 +713,62 @@ dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
     const dsp_image_enhancement_params_t *image_enhancement_params);
 
 dsp_status dsp_frontend_process(dsp_device device, const dsp_frontend_params_t *params);
+
+/**
+ *  @}
+ *  @defgroup privacy_mask Privacy Mask API
+ *  @{
+ */
+typedef dsp_privacy_mask_t dsp_static_privacy_mask_t;
+
+typedef struct {
+    uint8_t *bytemask;
+    /** Dimensions of the input frame that was fed to the neural network
+     * during inference (i.e., the frame used for object detection) */
+    size_t input_frame_net_width;
+    size_t input_frame_net_height;
+
+    dsp_letterbox_alignment_t letterbox;
+
+    /** Original aspect ratio of the frame that was fed to the neural\
+     * network before letterboxing */
+    float pre_letterbox_aspect_ratio;
+
+    /** Was the aspect ratio preserved when resizing the input image */
+    bool is_aspect_ratio_preserved;
+    dsp_roi_t roi;
+    /** The amount of edge buffer to add around the bytemask.
+     * Values should be in the range of [0, 15]. */
+    size_t dilation_size;
+} dsp_dynamic_privacy_mask_roi_t;
+
+typedef struct {
+    dsp_dynamic_privacy_mask_roi_t *masks;
+    size_t masks_count;
+} dsp_dynamic_privacy_mask_t;
+
+typedef struct {
+    dsp_privacy_mask_type_t type;
+    union {
+        dsp_color_t color;
+        size_t pixelization_size;
+    };
+    dsp_static_privacy_mask_t *static_privacy_mask_params;
+    dsp_dynamic_privacy_mask_t *dynamic_privacy_mask_params;
+} unified_dsp_privacy_mask_t;
+
+/**
+ * @brief Apply privacy masks on an image
+ * @details The function applies one or more privacy masks on an image.
+ * @param device A ::dsp_device object.
+ * @param image A base image to apply the privacy masks on.
+ * @param privacy_mask_params Pointer to ::unified_dsp_privacy_mask_t with the required privacy mask parameters.
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error.
+ */
+dsp_status dsp_privacy_mask(dsp_device device,
+                            dsp_image_properties_t *image,
+                            const unified_dsp_privacy_mask_t *privacy_mask_params);
+
 /**
  *  @}
  *  @defgroup blend Blend API

@@ -95,6 +95,15 @@ __attribute__((unused)) static inline const char *rotation_angle_to_string(dsp_r
     }
 }
 
+__attribute__((unused)) static bool rois_equal(const dsp_roi_t *a, const dsp_roi_t *b)
+{
+    if (!a || !b) {
+        return false;
+    }
+
+    return a->start_x == b->start_x && a->start_y == b->start_y && a->end_x == b->end_x && a->end_y == b->end_y;
+}
+
 #ifdef __cplusplus
 }
 #endif

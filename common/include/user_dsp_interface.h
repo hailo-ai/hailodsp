@@ -24,8 +24,6 @@
 /************************************************************************************
  *  This file is used for definitions that are shared between
  *  user space application and dsp firmware.
- *  Each component has a copy of this header
- * WHEN UPDATING THIS FILE, MAKE SURE TO UPDATE ALL COPIES
  ************************************************************************************/
 
 #pragma once
@@ -37,13 +35,15 @@
 #define MAX_PLANES (4)
 #define MAX_BLEND_OVERLAYS (50)
 #define MAX_BLUR_ROIS (80)
-#define MAX_PRIVACY_MASK_ROIS (8)
+#define MAX_STATIC_PRIVACY_MASKS (8)
+#define MAX_DYNAMIC_PRIVACY_MASKS (100)
 #define MAX_MULTI_RESIZE_CROPS (260)
 #define MAX_MULTI_RESIZE_OUTPUTS (7)
 #define MAX_AFFINE_TRANSFORMATION_CROPS (80)
 #define MAX_MULTI_CROP_ROIS (80)
 #define MAX_MULTI_FILTERS (80)
 #define MAX_FILTER_KERNEL_SIZE (33)
+#define HISTOGRAM_EQUALIZATION_LUT_SIZE (256)
 
 #define IDMA_TEST_NSID "idmaidmaidmaidma"
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
@@ -53,6 +53,7 @@
 #define IMAGING_NSID "imagingnamespace"
 #define UTILIZATION_NSID "utilizationcheck"
 #define DDR_TRAFFIC_NSID "ddrddrddrtraffic"
+#define STRESS_NSID "stressstressstre"
 
 #pragma pack(push, 4)
 
@@ -69,6 +70,7 @@ typedef enum {
     IMAGING_OP_MULTI_GAUSSIAN,
     IMAGING_OP_MULTI_LAPLACIAN,
     IMAGING_OP_TELESCOPIC_MULTI_CROP_AND_RESIZE,
+    IMAGING_OP_PRIVACY_MASK,
     IMAGING_OPS_COUNT,
 } imaging_operation_t;
 
@@ -142,7 +144,7 @@ typedef struct {
 
 typedef enum {
     INTERFACE_PRIVACY_MASK_COLOR,
-    INTERFACE_PRIVACY_MASK_BLUR,
+    INTERFACE_PRIVACY_MASK_PIXELIZATION,
 } privacy_mask_type_in_data_t;
 
 typedef struct {
@@ -153,9 +155,57 @@ typedef struct {
         color_t color;
         uint32_t blur_radius;
     };
-    roi_in_data_t rois[MAX_PRIVACY_MASK_ROIS];
+    roi_in_data_t rois[MAX_STATIC_PRIVACY_MASKS];
     uint32_t rois_count;
+} telescopic_privacy_mask_in_data_t;
+
+typedef struct {
+    uint8_t enabled;
+    data_plane_t bitmask;
+    roi_in_data_t rois[MAX_STATIC_PRIVACY_MASKS];
+    uint32_t rois_count;
+} static_privacy_mask_in_data_t;
+
+typedef struct {
+    data_plane_t bytemask;
+    /** Dimensions of the input frame that was fed to the neural network
+     * during inference (i.e., the frame used for object detection) */
+    uint32_t input_frame_net_width;
+    uint32_t input_frame_net_height;
+
+    interface_letterbox_alignment_t letterbox;
+
+    /** Original aspect ratio of the frame that was fed to the neural\
+     * network before letterboxing */
+    float pre_letterbox_aspect_ratio;
+
+    /** Was the aspect ratio preserved when resizing the input image */
+    uint8_t is_aspect_ratio_preserved;
+    roi_in_data_t roi;
+    uint32_t dilation_size;
+} dynamic_privacy_mask_roi_t;
+
+typedef struct {
+    uint8_t enabled;
+    dynamic_privacy_mask_roi_t masks[MAX_DYNAMIC_PRIVACY_MASKS];
+    uint32_t masks_count;
+} dynamic_privacy_mask_in_data_t;
+
+typedef struct {
+    image_properties_t image;
+    privacy_mask_type_in_data_t type;
+    union {
+        color_t color;
+        uint32_t pixelization_size;
+    };
+    static_privacy_mask_in_data_t static_args;
+    dynamic_privacy_mask_in_data_t dynamic_args;
 } privacy_mask_in_data_t;
+
+typedef struct {
+    uint8_t enabled;
+    uint8_t sigma_color;
+} image_enhancement_bilateral_in_data_t;
 
 typedef struct {
     uint8_t enabled;
@@ -163,6 +213,11 @@ typedef struct {
     uint16_t y_sample_step;
     data_plane_t histogram;
 } image_enhancement_histogram_in_data_t;
+
+typedef struct {
+    uint8_t enabled;
+    uint8_t lut[HISTOGRAM_EQUALIZATION_LUT_SIZE];
+} histogram_equalization_in_data_t;
 
 typedef struct {
     uint8_t enabled;
@@ -176,7 +231,9 @@ typedef struct {
     int16_t saturation_u_b;
     float saturation_v_a;
     int16_t saturation_v_b;
+    image_enhancement_bilateral_in_data_t bilateral;
     image_enhancement_histogram_in_data_t histogram;
+    histogram_equalization_in_data_t histogram_equalization;
 } image_enhancement_in_data_t;
 
 /** Letterbox properties */
@@ -207,7 +264,7 @@ typedef struct {
     multi_resize_in_data_t multi_resizes[MAX_MULTI_RESIZE_CROPS];
     uint8_t multi_resizes_count;
     uint8_t interpolation;
-    privacy_mask_in_data_t privacy_mask;
+    telescopic_privacy_mask_in_data_t privacy_mask;
     image_enhancement_in_data_t image_enhancement;
     uint8_t flip_rotate;
 } multi_crop_resize_in_data_t;
@@ -331,6 +388,7 @@ typedef struct {
         convert_format_in_data_t convert_format_args;
         dewarp_in_data_t dewarp_args;
         multi_crop_resize_in_data_t multi_crop_and_resize_args;
+        privacy_mask_in_data_t privacy_mask_args;
         rot_dis_dewarp_in_data_t rot_dis_dewarp_args;
         multi_warp_affine_params_t multi_affine_transform_args;
         multi_crop_in_data_t multi_crop_args;
@@ -393,13 +451,21 @@ typedef struct {
     uint32_t histogram;
     uint32_t histogram_dma_out;
     uint32_t y_blur_filter;
+    uint32_t y_bilateral_filter;
     uint32_t y_sharpness_blur;
     uint32_t y_sharpness_mask;
     uint32_t y_sharpness_filter;
     uint32_t y_contrast_brightness;
     uint32_t image_enhancement[2];
     uint32_t flip_rotate[2];
+    uint32_t histogram_equalization;
 } telescopic_mutli_resize_perf_info_t;
+
+typedef struct {
+    uint32_t bitmask_init;
+    fik_perf_into_t dynamic_fik;
+    fik_perf_into_t static_fik;
+} privacy_mask_perf_info_t;
 
 typedef struct {
     uint32_t xrp_handler;
@@ -407,6 +473,7 @@ typedef struct {
     dewarp_perf_info_t dewarp;
     telescopic_mutli_resize_perf_info_t telescopic_multi_resize;
     rot_dis_dewarp_perf_info_t rot_dis_dewarp;
+    privacy_mask_perf_info_t privacy_mask;
 } perf_info_t;
 
 typedef struct {
@@ -434,5 +501,9 @@ typedef struct {
     uint32_t rand_addr_start;
     uint32_t rand_addr_end;
 } ddr_traffic_request_t;
+
+typedef struct {
+    uint64_t duration_ticks;
+} stress_request_t;
 
 #pragma pack(pop)

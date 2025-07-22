@@ -63,8 +63,8 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (privacy_mask_params->rois_count > MAX_PRIVACY_MASK_ROIS) {
-        LOGGER__ERROR("Error: Too many ROIs. The operation supports up to {} ROIs", MAX_PRIVACY_MASK_ROIS);
+    if (privacy_mask_params->rois_count > MAX_STATIC_PRIVACY_MASKS) {
+        LOGGER__ERROR("Error: Too many ROIs. The operation supports up to {} ROIs", MAX_STATIC_PRIVACY_MASKS);
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -171,6 +171,23 @@ static dsp_status verify_resize_scaling(size_t src_width,
     return DSP_SUCCESS;
 }
 
+static bool are_all_rois_same(const dsp_multi_crop_resize_params_t *params)
+{
+    const dsp_roi_t *first = params->crop_resize_params[0].crop;
+    if (!first) {
+        LOGGER__ERROR("Error: First crop is NULL");
+        return false;
+    }
+
+    for (size_t i = 1; i < params->crop_resize_params_count; ++i) {
+        if (!rois_equal(first, params->crop_resize_params[i].crop)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_params_t *image_enhancement_params,
                                                   const dsp_multi_crop_resize_params_t *mutli_crop_resize_params)
 {
@@ -208,8 +225,10 @@ static dsp_status verify_image_enhancement_params(const dsp_image_enhancement_pa
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (image_enhancement_params->histogram_params && mutli_crop_resize_params->crop_resize_params_count > 1) {
-        LOGGER__ERROR("Error: Histogram is supported only for a single crop");
+    if (image_enhancement_params->histogram_params && mutli_crop_resize_params->crop_resize_params_count > 1 &&
+        !are_all_rois_same(mutli_crop_resize_params)) {
+        LOGGER__ERROR(
+            "Error: Histogram is supported only for a single crop or if the ROIs are the same across all crops");
         return DSP_INVALID_ARGUMENT;
     }
 
@@ -435,6 +454,7 @@ static void dump_telescopic_parameters(const dsp_multi_crop_resize_params_t *mut
     LOGGER__ERROR("Parameters provided:");
     LOGGER__ERROR("  - src: width={}, height={}", mutli_crop_resize_params->src->width,
                   mutli_crop_resize_params->src->height);
+    LOGGER__ERROR("  - interpolation: {}", mutli_crop_resize_params->interpolation);
 
     for (size_t i = 0; i < mutli_crop_resize_params->crop_resize_params_count; ++i) {
         const auto &crop_resize = mutli_crop_resize_params->crop_resize_params[i];
@@ -452,6 +472,12 @@ static void dump_telescopic_parameters(const dsp_multi_crop_resize_params_t *mut
     if (privacy_mask_params) {
         LOGGER__ERROR("  - privacy_mask: type={}, rois_count={}", privacy_mask_params->type,
                       privacy_mask_params->rois_count);
+        if (privacy_mask_params->type == DSP_PRIVACY_MASK_COLOR) {
+            LOGGER__ERROR("    - color: y={}, u={}, v={}", privacy_mask_params->color.y, privacy_mask_params->color.u,
+                          privacy_mask_params->color.v);
+        } else if (privacy_mask_params->type == DSP_PRIVACY_MASK_BLUR) {
+            LOGGER__ERROR("    - blur_radius: {}", privacy_mask_params->blur_radius);
+        }
         for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {
             const auto &roi = privacy_mask_params->rois[i];
             LOGGER__ERROR("    - roi[{}]: start_x={}, start_y={}, end_x={}, end_y={}", i, roi.start_x, roi.start_y,
@@ -462,6 +488,8 @@ static void dump_telescopic_parameters(const dsp_multi_crop_resize_params_t *mut
     if (image_enhancement_params) {
         LOGGER__ERROR("  - image_enhancement:");
         LOGGER__ERROR("    - blur: level={}", image_enhancement_params->blur.level);
+        LOGGER__ERROR("    - bilateral: enabled={}, sigma_color={}", image_enhancement_params->bilateral.enabled,
+                      image_enhancement_params->bilateral.sigma_color);
         LOGGER__ERROR("    - sharpness: level={}, amount={}, threshold={}", image_enhancement_params->sharpness.level,
                       image_enhancement_params->sharpness.amount, image_enhancement_params->sharpness.threshold);
         LOGGER__ERROR(
@@ -474,6 +502,9 @@ static void dump_telescopic_parameters(const dsp_multi_crop_resize_params_t *mut
             LOGGER__ERROR("    - histogram: x_sample_step={}, y_sample_step={}",
                           image_enhancement_params->histogram_params->x_sample_step,
                           image_enhancement_params->histogram_params->y_sample_step);
+        }
+        if (image_enhancement_params->histogram_equalization_params) {
+            LOGGER__ERROR("    - histogram_equalization: enabled=true");
         }
     }
 
@@ -884,6 +915,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     in_data->multi_crop_and_resize_args.privacy_mask.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.enabled = false;
     in_data->multi_crop_and_resize_args.image_enhancement.histogram.enabled = false;
+    in_data->multi_crop_and_resize_args.image_enhancement.histogram_equalization.enabled = false;
     in_data->multi_crop_and_resize_args.flip_rotate = INTERFACE_FLIP_ROTATE_NONE;
     in_data->multi_crop_and_resize_args.multi_resizes_count = mutli_crop_resize_params->crop_resize_params_count;
     in_data->multi_crop_and_resize_args.interpolation = mutli_crop_resize_params->interpolation;
@@ -1031,6 +1063,10 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     if (image_enhancement_params) {
         in_data->multi_crop_and_resize_args.image_enhancement.enabled = true;
         in_data->multi_crop_and_resize_args.image_enhancement.blur = image_enhancement_params->blur.level;
+        in_data->multi_crop_and_resize_args.image_enhancement.bilateral.enabled =
+            image_enhancement_params->bilateral.enabled;
+        in_data->multi_crop_and_resize_args.image_enhancement.bilateral.sigma_color =
+            image_enhancement_params->bilateral.sigma_color;
         in_data->multi_crop_and_resize_args.image_enhancement.sharpness = image_enhancement_params->sharpness.level;
         in_data->multi_crop_and_resize_args.image_enhancement.amount = image_enhancement_params->sharpness.amount;
         in_data->multi_crop_and_resize_args.image_enhancement.threshold = image_enhancement_params->sharpness.threshold;
@@ -1059,6 +1095,13 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
                 buffer_list.add_buffer(image_enhancement_params->histogram_params->histogram,
                                        sizeof(image_enhancement_params->histogram_params->histogram),
                                        BufferAccessType::Write);
+        }
+
+        if (image_enhancement_params->histogram_equalization_params) {
+            in_data->multi_crop_and_resize_args.image_enhancement.histogram_equalization.enabled = true;
+            std::memcpy(in_data->multi_crop_and_resize_args.image_enhancement.histogram_equalization.lut,
+                        image_enhancement_params->histogram_equalization_params->lut,
+                        sizeof(image_enhancement_params->histogram_equalization_params->lut));
         }
     }
 

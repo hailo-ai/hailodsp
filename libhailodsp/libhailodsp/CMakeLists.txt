@@ -39,9 +39,10 @@ add_library(
   src/crop.cpp
   src/gaussian.cpp
   src/laplacian.cpp
-  src/priority_queue.cpp)
+  src/priority_queue.cpp
+  src/privacy_mask.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.7.0)
+set_target_properties(hailodsp PROPERTIES VERSION 1.8.0)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218
@@ -51,6 +52,7 @@ target_compile_options(hailodsp
                        PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
 
 target_link_libraries(hailodsp PRIVATE spdlog::spdlog)
+link_build_info_to_target(hailodsp)
 
 target_include_directories(hailodsp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(hailodsp PRIVATE ${PROJECT_SOURCE_DIR}/common)

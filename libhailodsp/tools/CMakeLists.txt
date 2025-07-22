@@ -4,5 +4,6 @@ include_directories(${PROJECT_SOURCE_DIR}/common)
 link_libraries(CLI11::CLI11 spdlog::spdlog hailodsp hailodsp-internal)
 
 add_executable(dsp-utilization utilization_tool.cpp)
+link_build_info_to_target(dsp-utilization)
 
 install(TARGETS dsp-utilization DESTINATION bin)

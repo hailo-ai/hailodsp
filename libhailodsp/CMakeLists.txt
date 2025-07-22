@@ -11,6 +11,11 @@ find_package(spdlog REQUIRED)
 option(DSP_BUILD_TESTS "Build unit tests" OFF)
 option(DSP_BUILD_DOC "Build documentation" OFF)
 
+include(${PROJECT_SOURCE_DIR}/cmake/BuildInfo.cmake)
+
+# include the directories common for user space and FW
+include_directories(../common/include)
+
 add_compile_options(-Wall -Werror -Wextra
                     $<$<COMPILE_LANGUAGE:CXX>:-Wno-missing-field-initializers>)
 
