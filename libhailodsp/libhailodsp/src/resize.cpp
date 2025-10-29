@@ -35,12 +35,24 @@
 #define CROP_RESIZE_MAX_SCALE (16)
 #define MULTI_CROP_RESIZE_MAX_SCALE (32)
 
-static_assert((int)DSP_NO_LETTERBOX == (int)INTERFACE_NO_LETTERBOX,
+static_assert(static_cast<int>(DSP_NO_LETTERBOX) == static_cast<int>(INTERFACE_NO_LETTERBOX),
               "Interface and internal implementation must have the same number for no letterbox");
-static_assert((int)DSP_LETTERBOX_MIDDLE == (int)INTERFACE_LETTERBOX_MIDDLE,
+static_assert(static_cast<int>(DSP_LETTERBOX_MIDDLE) == static_cast<int>(INTERFACE_LETTERBOX_MIDDLE),
               "Interface and internal implementation must have the same number for letterbox middle");
-static_assert((int)DSP_LETTERBOX_UP_LEFT == (int)INTERFACE_LETTERBOX_UP_LEFT,
+static_assert(static_cast<int>(DSP_LETTERBOX_UP_LEFT) == static_cast<int>(INTERFACE_LETTERBOX_UP_LEFT),
               "Interface and internal implementation must have the same number for letterbox up_left");
+
+static_assert(static_cast<int>(DSP_SCALING_MODE_STRETCH) == static_cast<int>(INTERFACE_SCALING_MODE_STRECH),
+              "dsp_scaling_mode_t must be identical to interface_scaling_mode_t");
+static_assert(static_cast<int>(DSP_SCALING_MODE_LETTERBOX_MIDDLE) ==
+                  static_cast<int>(INTERFACE_SCALING_MODE_LETTERBOX_MIDDLE),
+              "dsp_scaling_mode_t must be identical to interface_scaling_mode_t");
+static_assert(static_cast<int>(DSP_SCALING_MODE_LETTERBOX_UP_LEFT) ==
+                  static_cast<int>(INTERFACE_SCALING_MODE_LETTERBOX_UP_LEFT),
+              "dsp_scaling_mode_t must be identical to interface_scaling_mode_t");
+static_assert(static_cast<int>(DSP_SCALING_MODE_SCALE_AND_CROP) ==
+                  static_cast<int>(INTERFACE_SCALING_MODE_SCALE_AND_CROP),
+              "dsp_scaling_mode_t must be identical to interface_scaling_mode_t");
 
 // This function assumes that "image" params is already checked for correctness
 static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image,
@@ -107,14 +119,14 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
             invalid_roi = true;
         }
 
-        const size_t bitmask_width = ceil(image->width / (float)PRIVACY_MASK_QUANTIZATION);
+        const size_t bitmask_width = ceil(image->width / static_cast<float>(PRIVACY_MASK_QUANTIZATION));
         if (roi_params->end_x > bitmask_width) {
             LOGGER__ERROR("Error: ROI end_x ({}) must be smaller or equal to quantized bitmask width ({})",
                           roi_params->end_x, bitmask_width);
             invalid_roi = true;
         }
 
-        const size_t bitmask_height = ceil(image->height / (float)PRIVACY_MASK_QUANTIZATION);
+        const size_t bitmask_height = ceil(image->height / static_cast<float>(PRIVACY_MASK_QUANTIZATION));
         if (roi_params->end_y > bitmask_height) {
             LOGGER__ERROR("Error: ROI end_y ({}) must be smaller or equal to quantized bitmask height ({})",
                           roi_params->end_y, bitmask_height);
@@ -130,45 +142,142 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
     return DSP_SUCCESS;
 }
 
+static std::pair<size_t, size_t> expand_to_aspect_ratio(size_t src_width,
+                                                        size_t src_height,
+                                                        size_t dst_width,
+                                                        size_t dst_height)
+{
+    float src_aspect_ratio = static_cast<float>(src_width) / src_height;
+    float dst_aspect_ratio = static_cast<float>(dst_width) / dst_height;
+
+    size_t new_width, new_height;
+    if (dst_aspect_ratio > src_aspect_ratio) {
+        // adjust height to maintain aspect ratio
+        new_width = dst_width;
+        new_height = std::ceil(dst_width / src_aspect_ratio);
+    } else {
+        // adjust width to maintain aspect ratio
+        new_width = std::ceil(dst_height * src_aspect_ratio);
+        new_height = dst_height;
+    }
+
+    new_width = ROUND_UP(new_width, 2);
+    new_height = ROUND_UP(new_height, 2);
+
+    return {new_width, new_height};
+}
+
+static std::pair<size_t, size_t> shrink_to_aspect_ratio(size_t src_width,
+                                                        size_t src_height,
+                                                        size_t dst_width,
+                                                        size_t dst_height)
+{
+    float src_aspect_ratio = static_cast<float>(src_width) / src_height;
+    float dst_aspect_ratio = static_cast<float>(dst_width) / dst_height;
+
+    size_t new_width, new_height;
+    if (dst_aspect_ratio < src_aspect_ratio) {
+        // truncate height to maintain aspect ratio
+        new_width = dst_width;
+        new_height = std::ceil(dst_width / src_aspect_ratio);
+    } else {
+        // truncate width to maintain aspect ratio
+        new_width = std::ceil(dst_height * src_aspect_ratio);
+        new_height = dst_height;
+    }
+
+    new_width = ROUND_UP(new_width, 2);
+    new_height = ROUND_UP(new_height, 2);
+
+    return {new_width, new_height};
+}
+
+static std::pair<size_t, size_t> adjust_to_aspect_ratio(size_t src_width,
+                                                        size_t src_height,
+                                                        size_t dst_width,
+                                                        size_t dst_height,
+                                                        dsp_scaling_mode_t scaling_mode)
+{
+    if (scaling_mode == DSP_SCALING_MODE_SCALE_AND_CROP) {
+        return expand_to_aspect_ratio(src_width, src_height, dst_width, dst_height);
+    } else if (scaling_mode == DSP_SCALING_MODE_LETTERBOX_MIDDLE ||
+               scaling_mode == DSP_SCALING_MODE_LETTERBOX_UP_LEFT) {
+        return shrink_to_aspect_ratio(src_width, src_height, dst_width, dst_height);
+    } else {
+        return {dst_width, dst_height};
+    }
+}
+
 static dsp_status verify_resize_scaling(size_t src_width,
                                         size_t src_height,
                                         size_t dst_width,
                                         size_t dst_height,
-                                        size_t max_scale)
+                                        size_t max_scale,
+                                        dsp_scaling_mode_t scaling_mode)
 {
-    if (dst_width * max_scale < src_width) {
+    if (scaling_mode >= DSP_SCALING_MODE_COUNT) {
+        LOGGER__ERROR("Error: Unknown scaling mode {}", scaling_mode);
+        return DSP_INVALID_ARGUMENT;
+    }
+
+    auto [width, height] = adjust_to_aspect_ratio(src_width, src_height, dst_width, dst_height, scaling_mode);
+
+    if (width * max_scale < src_width) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst width({}) can be at most {} "
             "times smaller than src width({})",
-            dst_width, max_scale, src_width);
+            width, max_scale, src_width);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (dst_height * max_scale < src_height) {
+    if (height * max_scale < src_height) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst height({}) can be at most {} "
             "times smaller than src height({})",
-            dst_height, max_scale, src_height);
+            height, max_scale, src_height);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (dst_width > src_width * max_scale) {
+    if (width > src_width * max_scale) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst width({}) can be at most {} "
             "times larger than src width({})",
-            dst_width, max_scale, src_width);
+            width, max_scale, src_width);
         return DSP_INVALID_ARGUMENT;
     }
 
-    if (dst_height > src_height * max_scale) {
+    if (height > src_height * max_scale) {
         LOGGER__ERROR(
             "Error: Resize scale is too large, dst height({}) can be at most {} "
             "times larger than src height({})",
-            dst_height, max_scale, src_height);
+            height, max_scale, src_height);
         return DSP_INVALID_ARGUMENT;
     }
 
     return DSP_SUCCESS;
+}
+
+static dsp_status verify_resize_scaling(size_t src_width,
+                                        size_t src_height,
+                                        size_t dst_width,
+                                        size_t dst_height,
+                                        size_t max_scale,
+                                        const dsp_letterbox_properties_t *letterbox_params)
+{
+    if (letterbox_params) {
+        // assert that the casting is correct
+        static_assert(static_cast<int>(DSP_NO_LETTERBOX) == static_cast<int>(DSP_SCALING_MODE_STRETCH),
+                      "DSP_NO_LETTERBOX must be identical to DSP_SCALING_MODE_STRETCH");
+        static_assert(static_cast<int>(DSP_LETTERBOX_MIDDLE) == static_cast<int>(DSP_SCALING_MODE_LETTERBOX_MIDDLE),
+                      "DSP_LETTERBOX_MIDDLE must be identical to DSP_SCALING_MODE_LETTERBOX_MIDDLE");
+        static_assert(static_cast<int>(DSP_LETTERBOX_UP_LEFT) == static_cast<int>(DSP_SCALING_MODE_LETTERBOX_UP_LEFT),
+                      "DSP_LETTERBOX_UP_LEFT must be identical to DSP_SCALING_MODE_LETTERBOX_UP_LEFT");
+
+        return verify_resize_scaling(src_width, src_height, dst_width, dst_height, max_scale,
+                                     static_cast<dsp_scaling_mode_t>(letterbox_params->alignment));
+    } else {
+        return verify_resize_scaling(src_width, src_height, dst_width, dst_height, max_scale, DSP_SCALING_MODE_STRETCH);
+    }
 }
 
 static bool are_all_rois_same(const dsp_multi_crop_resize_params_t *params)
@@ -259,94 +368,58 @@ static dsp_status verify_image_enhancement_histogram_params(
     return DSP_SUCCESS;
 }
 
-static std::pair<size_t, size_t> adjust_to_aspect_ratio(size_t src_width,
-                                                        size_t src_height,
-                                                        size_t dst_width,
-                                                        size_t dst_height)
-{
-    float src_aspect_ratio = static_cast<float>(src_width) / src_height;
-    float dst_aspect_ratio = static_cast<float>(dst_width) / dst_height;
-
-    size_t new_width, new_height;
-    if (dst_aspect_ratio > src_aspect_ratio) {
-        // adjust height to maintain aspect ratio
-        new_width = dst_width;
-        new_height = std::ceil(dst_width / src_aspect_ratio);
-    } else {
-        // adjust width to maintain aspect ratio
-        new_width = std::ceil(dst_height * src_aspect_ratio);
-        new_height = dst_height;
-    }
-
-    new_width = ROUND_UP(new_width, 2);
-    new_height = ROUND_UP(new_height, 2);
-
-    return {new_width, new_height};
-}
-
 /* Telescopic is only valid if each resolution is less than or equal to the previous one in both width and height */
 dsp_status verify_telescopic_resolutions(dsp_crop_resize_params_t *params)
 {
-    const dsp_image_properties_t *prev_resolution = nullptr;
+    int prev_idx = 0;
     int i = 0;
 
     /* Find the first resolution in the list */
     for (i = 0; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
         if (params->dst[i] != nullptr) {
-            prev_resolution = params->dst[i];
+            prev_idx = i;
             break;
         }
     }
 
-    if (prev_resolution == nullptr) {
+    if (i == DSP_MULTI_RESIZE_OUTPUTS_COUNT) {
         LOGGER__ERROR("Error: At least one image destination must be provided");
         return DSP_INVALID_ARGUMENT;
     }
 
     /* Check that each resolution is less than or equal to the previous one */
-    for (; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
+    for (i = prev_idx + 1; i < DSP_MULTI_RESIZE_OUTPUTS_COUNT; i++) {
         if (params->dst[i] == nullptr) {
             continue;
         }
 
-        if (!params->keep_aspect_ratio[i]) {
-            if (params->dst[i]->width > prev_resolution->width) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} width ({}) must be lower or equal to previous resolution width ({})", i,
-                    params->dst[i]->width, prev_resolution->width);
-                return DSP_INVALID_ARGUMENT;
-            }
-            if (params->dst[i]->height > prev_resolution->height) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} height ({}) must be lower or equal to previous resolution height ({})", i,
-                    params->dst[i]->height, prev_resolution->height);
-                return DSP_INVALID_ARGUMENT;
-            }
-        } else {
-            auto src_width = params->crop->end_x - params->crop->start_x;
-            auto src_height = params->crop->end_y - params->crop->start_y;
-            auto [prev_width, prev_height] =
-                adjust_to_aspect_ratio(src_width, src_height, prev_resolution->width, prev_resolution->height);
-            auto [width, height] =
-                adjust_to_aspect_ratio(src_width, src_height, params->dst[i]->width, params->dst[i]->height);
-
-            if (width > prev_width) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} (aspect ratio) width ({} -> {}) must be lower or equal to previous "
-                    "resolution width ({} -> {})",
-                    i, params->dst[i]->width, width, prev_resolution->width, prev_width);
-                return DSP_INVALID_ARGUMENT;
-            }
-            if (height > prev_height) {
-                LOGGER__ERROR(
-                    "Error: Resolution {} (aspect ratio) height ({} -> {}) must be lower or equal to previous "
-                    "resolution height ({} -> {})",
-                    i, params->dst[i]->height, height, prev_resolution->height, prev_height);
-                return DSP_INVALID_ARGUMENT;
-            }
+        auto src_width = params->crop->end_x - params->crop->start_x;
+        auto src_height = params->crop->end_y - params->crop->start_y;
+        auto [prev_width, prev_height] =
+            adjust_to_aspect_ratio(src_width, src_height, params->dst[prev_idx]->width, params->dst[prev_idx]->height,
+                                   params->scaling_params[prev_idx].scaling_mode);
+        auto [width, height] = adjust_to_aspect_ratio(src_width, src_height, params->dst[i]->width,
+                                                      params->dst[i]->height, params->scaling_params[i].scaling_mode);
+        if (width > prev_width) {
+            LOGGER__ERROR(
+                "Error: Resolution {} width {} (scaled from {} using {}) must be lower or equal to "
+                "previous resolution {} width {} (scaled from {} using {})",
+                i, width, params->dst[i]->width, scaling_mode_to_string(params->scaling_params[i].scaling_mode),
+                prev_idx, prev_width, params->dst[prev_idx]->width,
+                scaling_mode_to_string(params->scaling_params[prev_idx].scaling_mode));
+            return DSP_INVALID_ARGUMENT;
+        }
+        if (height > prev_height) {
+            LOGGER__ERROR(
+                "Error: Resolution {} height {} (scaled from {} using {}) must be lower or equal to "
+                "previous resolution {} height {} (scaled from {} using {})",
+                i, height, params->dst[i]->height, scaling_mode_to_string(params->scaling_params[i].scaling_mode),
+                prev_idx, prev_height, params->dst[prev_idx]->height,
+                scaling_mode_to_string(params->scaling_params[prev_idx].scaling_mode));
+            return DSP_INVALID_ARGUMENT;
         }
 
-        prev_resolution = params->dst[i];
+        prev_idx = i;
     }
 
     return DSP_SUCCESS;
@@ -463,8 +536,8 @@ static void dump_telescopic_parameters(const dsp_multi_crop_resize_params_t *mut
                       crop_resize.crop->end_y);
         for (size_t j = 0; j < DSP_MULTI_RESIZE_OUTPUTS_COUNT; ++j) {
             if (crop_resize.dst[j]) {
-                LOGGER__ERROR("    - dst[{}]: width={}, height={}, keep_aspect_ratio={}", j, crop_resize.dst[j]->width,
-                              crop_resize.dst[j]->height, crop_resize.keep_aspect_ratio[j]);
+                LOGGER__ERROR("    - dst[{}]: width={}, height={}, scaling_mode={}", j, crop_resize.dst[j]->width,
+                              crop_resize.dst[j]->height, crop_resize.scaling_params[j].scaling_mode);
             }
         }
     }
@@ -556,7 +629,7 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
                                 (resize_params->interpolation == INTERPOLATION_TYPE_BILINEAR)));
     if (!skip_scaling_check) {
         status = verify_resize_scaling(cropped_src.width, cropped_src.height, resize_params->dst->width,
-                                       resize_params->dst->height, CROP_RESIZE_MAX_SCALE);
+                                       resize_params->dst->height, CROP_RESIZE_MAX_SCALE, letterbox_params);
         if (status != DSP_SUCCESS) {
             LOGGER__ERROR("Error: Image resize scale check failed");
             return status;
@@ -606,10 +679,11 @@ dsp_status dsp_crop_and_resize_perf(dsp_device device,
     in_data->crop_and_resize_args.crop.end_x = crop_params->end_x;
     in_data->crop_and_resize_args.crop.end_y = crop_params->end_y;
     in_data->crop_and_resize_args.letterbox.alignment = INTERFACE_NO_LETTERBOX;
-    if ((letterbox_params) && (letterbox_params->alignment != DSP_NO_LETTERBOX)) {
+    if (letterbox_params && letterbox_params->alignment != DSP_NO_LETTERBOX) {
         in_data->crop_and_resize_args.letterbox.alignment =
-            (interface_letterbox_alignment_t)letterbox_params->alignment;
-        memcpy(&in_data->crop_and_resize_args.letterbox.color, &letterbox_params->color, sizeof(color_t));
+            static_cast<interface_letterbox_alignment_t>(letterbox_params->alignment);
+        memcpy(&in_data->crop_and_resize_args.letterbox.color, &letterbox_params->color,
+               sizeof(in_data->crop_and_resize_args.letterbox.color));
     }
 
     std::vector<command_image_t> images = {
@@ -784,7 +858,7 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
             }
 
             status = verify_resize_scaling(cropped_src.width, cropped_src.height, dst_image->width, dst_image->height,
-                                           MULTI_CROP_RESIZE_MAX_SCALE);
+                                           MULTI_CROP_RESIZE_MAX_SCALE, DSP_SCALING_MODE_STRETCH);
             if (status != DSP_SUCCESS) {
                 LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]", j, i);
                 return status;
@@ -816,9 +890,10 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
     if (privacy_mask_params) {
         in_data->multi_crop_and_resize_args.privacy_mask.enabled = true;
         const size_t bitmask_width =
-            ceil(mutli_crop_resize_params->src->width / (double)(PRIVACY_MASK_QUANTIZATION * 8));
+            ceil(mutli_crop_resize_params->src->width / static_cast<double>(PRIVACY_MASK_QUANTIZATION * 8));
         const size_t bitmask_stride = ROUND_UP(bitmask_width, 8);
-        const size_t bitmask_height = ceil(mutli_crop_resize_params->src->height / (double)PRIVACY_MASK_QUANTIZATION);
+        const size_t bitmask_height =
+            ceil(mutli_crop_resize_params->src->height / static_cast<double>(PRIVACY_MASK_QUANTIZATION));
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.line_stride = bitmask_stride;
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.plane_size = bitmask_stride * bitmask_height;
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
@@ -1000,13 +1075,19 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
 
             status = verify_resize_scaling(crop_and_resize_params->crop->end_x - crop_and_resize_params->crop->start_x,
                                            crop_and_resize_params->crop->end_y - crop_and_resize_params->crop->start_y,
-                                           dst_image->width, dst_image->height, MULTI_CROP_RESIZE_MAX_SCALE);
+                                           dst_image->width, dst_image->height, MULTI_CROP_RESIZE_MAX_SCALE,
+                                           crop_and_resize_params->scaling_params[i].scaling_mode);
             if (status != DSP_SUCCESS) {
                 LOGGER__ERROR("Error: Image resize scale check failed for dst[{}, {}]", j, i);
                 return status;
             }
 
-            crop_and_resize_args->keep_aspect_ratio[dst_count] = crop_and_resize_params->keep_aspect_ratio[i];
+            crop_and_resize_args->scaling_params[dst_count].mode =
+                crop_and_resize_params->scaling_params[i].scaling_mode;
+
+            crop_and_resize_args->scaling_params[dst_count].color.y = crop_and_resize_params->scaling_params[i].color.y;
+            crop_and_resize_args->scaling_params[dst_count].color.u = crop_and_resize_params->scaling_params[i].color.u;
+            crop_and_resize_args->scaling_params[dst_count].color.v = crop_and_resize_params->scaling_params[i].color.v;
 
             images.emplace_back(command_image_t{
                 .user_api_image = dst_image,
@@ -1034,15 +1115,17 @@ dsp_status dsp_telescopic_multi_crop_and_resize_perf(dsp_device device,
     if (privacy_mask_params) {
         in_data->multi_crop_and_resize_args.privacy_mask.enabled = true;
         const size_t bitmask_width =
-            ceil(mutli_crop_resize_params->src->width / (double)(PRIVACY_MASK_QUANTIZATION * 8));
+            ceil(mutli_crop_resize_params->src->width / static_cast<double>(PRIVACY_MASK_QUANTIZATION * 8));
         const size_t bitmask_stride = ROUND_UP(bitmask_width, 8);
-        const size_t bitmask_height = ceil(mutli_crop_resize_params->src->height / (double)PRIVACY_MASK_QUANTIZATION);
+        const size_t bitmask_height =
+            ceil(mutli_crop_resize_params->src->height / static_cast<double>(PRIVACY_MASK_QUANTIZATION));
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.line_stride = bitmask_stride;
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.plane_size = bitmask_stride * bitmask_height;
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
             privacy_mask_params->bitmask, bitmask_stride * bitmask_height, BufferAccessType::Read);
 
-        in_data->multi_crop_and_resize_args.privacy_mask.type = (privacy_mask_type_in_data_t)privacy_mask_params->type;
+        in_data->multi_crop_and_resize_args.privacy_mask.type =
+            static_cast<privacy_mask_type_in_data_t>(privacy_mask_params->type);
         if (privacy_mask_params->type == DSP_PRIVACY_MASK_COLOR) {
             in_data->multi_crop_and_resize_args.privacy_mask.color.y = privacy_mask_params->color.y;
             in_data->multi_crop_and_resize_args.privacy_mask.color.u = privacy_mask_params->color.u;

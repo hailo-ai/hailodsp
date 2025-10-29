@@ -68,6 +68,29 @@ static dsp_status check_cropped_image_args(const dsp_image_properties_t *src,
     return status;
 }
 
+static void dump_warp_affine_parameters(const dsp_multi_warp_affine_params_t *multi_warp_affine_params)
+{
+    LOGGER__ERROR("Parameters provided:");
+    LOGGER__ERROR("  - src: width={}, height={}", multi_warp_affine_params->src->width,
+                  multi_warp_affine_params->src->height);
+    LOGGER__ERROR("  - interpolation: {}", multi_warp_affine_params->interpolation);
+    for (size_t i = 0; i < multi_warp_affine_params->crops_count; i++) {
+        LOGGER__ERROR(
+            "  - crop[{}]: start_x={}, start_y={}, end_x={}, end_y={}", i,
+            multi_warp_affine_params->crops[i]->params->start_x, multi_warp_affine_params->crops[i]->params->start_y,
+            multi_warp_affine_params->crops[i]->params->end_x, multi_warp_affine_params->crops[i]->params->end_y);
+        LOGGER__ERROR("    - dst: width={}, height={}", multi_warp_affine_params->crops[i]->dst->width,
+                      multi_warp_affine_params->crops[i]->dst->height);
+        LOGGER__ERROR("    - affine matrix: [{}, {}, {}], [{}, {}, {}]",
+                      multi_warp_affine_params->crops[i]->affine_matrix->a11,
+                      multi_warp_affine_params->crops[i]->affine_matrix->a12,
+                      multi_warp_affine_params->crops[i]->affine_matrix->a13,
+                      multi_warp_affine_params->crops[i]->affine_matrix->a21,
+                      multi_warp_affine_params->crops[i]->affine_matrix->a22,
+                      multi_warp_affine_params->crops[i]->affine_matrix->a23);
+    }
+}
+
 dsp_status dsp_multi_warp_affine_perf(dsp_device device,
                                       const dsp_multi_warp_affine_params_t *multi_warp_affine_params,
                                       perf_info_t *perf_info)
@@ -158,6 +181,9 @@ dsp_status dsp_multi_warp_affine_perf(dsp_device device,
 
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing multi warp affine operation. Error code: {}", status);
+        if (status == DSP_RUN_COMMAND_FAILED) {
+            dump_warp_affine_parameters(multi_warp_affine_params);
+        }
     }
 
     return status;

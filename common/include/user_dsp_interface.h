@@ -53,7 +53,7 @@
 #define IMAGING_NSID "imagingnamespace"
 #define UTILIZATION_NSID "utilizationcheck"
 #define DDR_TRAFFIC_NSID "ddrddrddrtraffic"
-#define STRESS_NSID "stressstressstre"
+#define STRESS_NSID "stressstresstest"
 
 #pragma pack(push, 4)
 
@@ -103,12 +103,18 @@ typedef union {
     };
 } color_t;
 
-/** Letterbox aligment types */
 typedef enum {
-    INTERFACE_NO_LETTERBOX = 0,  /**< No letterbox resizing is performed */
-    INTERFACE_LETTERBOX_MIDDLE,  /**< Align the image to the middle */
-    INTERFACE_LETTERBOX_UP_LEFT, /**< Align the image up or left */
+    INTERFACE_NO_LETTERBOX = 0,
+    INTERFACE_LETTERBOX_MIDDLE,
+    INTERFACE_LETTERBOX_UP_LEFT,
 } interface_letterbox_alignment_t;
+
+typedef enum {
+    INTERFACE_SCALING_MODE_STRECH = 0,
+    INTERFACE_SCALING_MODE_LETTERBOX_MIDDLE,
+    INTERFACE_SCALING_MODE_LETTERBOX_UP_LEFT,
+    INTERFACE_SCALING_MODE_SCALE_AND_CROP,
+} interface_scaling_mode_t;
 
 typedef enum {
     INTERFACE_FLIP_ROTATE_NONE = 0,
@@ -168,19 +174,9 @@ typedef struct {
 
 typedef struct {
     data_plane_t bytemask;
-    /** Dimensions of the input frame that was fed to the neural network
-     * during inference (i.e., the frame used for object detection) */
     uint32_t input_frame_net_width;
     uint32_t input_frame_net_height;
-
     interface_letterbox_alignment_t letterbox;
-
-    /** Original aspect ratio of the frame that was fed to the neural\
-     * network before letterboxing */
-    float pre_letterbox_aspect_ratio;
-
-    /** Was the aspect ratio preserved when resizing the input image */
-    uint8_t is_aspect_ratio_preserved;
     roi_in_data_t roi;
     uint32_t dilation_size;
 } dynamic_privacy_mask_roi_t;
@@ -189,6 +185,8 @@ typedef struct {
     uint8_t enabled;
     dynamic_privacy_mask_roi_t masks[MAX_DYNAMIC_PRIVACY_MASKS];
     uint32_t masks_count;
+    float original_aspect_ratio;
+    uint8_t is_aspect_ratio_preserved;
 } dynamic_privacy_mask_in_data_t;
 
 typedef struct {
@@ -236,13 +234,15 @@ typedef struct {
     histogram_equalization_in_data_t histogram_equalization;
 } image_enhancement_in_data_t;
 
-/** Letterbox properties */
 typedef struct {
-    /** Image alignment */
     uint8_t alignment;
-    /** The color used for letterboxes */
     color_t color;
 } letterbox_properties_t;
+
+typedef struct {
+    uint8_t mode;
+    color_t color;
+} scaling_properties_t;
 
 typedef struct {
     image_properties_t src;
@@ -255,7 +255,7 @@ typedef struct {
 typedef struct {
     roi_in_data_t crop;
     image_properties_t dst[MAX_MULTI_RESIZE_OUTPUTS];
-    uint8_t keep_aspect_ratio[MAX_MULTI_RESIZE_OUTPUTS];
+    scaling_properties_t scaling_params[MAX_MULTI_RESIZE_OUTPUTS];
     uint8_t dst_count;
 } multi_resize_in_data_t;
 
@@ -446,6 +446,7 @@ typedef struct {
     uint32_t dma_out_config[2];
     uint32_t dma_in_wait[2];
     uint32_t dma_out_wait[2];
+    uint32_t letterbox_padding[2];
     uint32_t bitmask_dma_in;
     uint32_t privacy_mask[2];
     uint32_t histogram;
@@ -502,8 +503,14 @@ typedef struct {
     uint32_t rand_addr_end;
 } ddr_traffic_request_t;
 
+typedef enum {
+    STRESS_TYPE_BUSY_LOOP,
+    STRESS_TYPE_HARRIS,
+} stree_type_t;
+
 typedef struct {
     uint64_t duration_ticks;
+    uint8_t stress_type;
 } stress_request_t;
 
 #pragma pack(pop)

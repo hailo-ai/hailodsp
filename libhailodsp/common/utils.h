@@ -32,8 +32,12 @@ extern "C" {
 #include <assert.h>
 
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
+#ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
 
 #define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
 
@@ -48,6 +52,15 @@ static const char *format_names[] = {
 static_assert(ARRAY_LENGTH(format_names) == DSP_IMAGE_FORMAT_COUNT,
               "format_names length must be identical to dsp_image_format_t count");
 
+__attribute__((unused)) static inline const char *format_arg_to_string(dsp_image_format_t format)
+{
+    if (format < ARRAY_LENGTH(format_names)) {
+        return format_names[format];
+    } else {
+        return "unknown";
+    }
+}
+
 static const char *flip_direction_names[] = {
     [DSP_FLIP_DIRECTION_NONE] = "none",
     [DSP_FLIP_DIRECTION_HORIZONTAL] = "horizontal",
@@ -57,6 +70,15 @@ static const char *flip_direction_names[] = {
 
 static_assert(ARRAY_LENGTH(flip_direction_names) == DSP_FLIP_DIRECTION_COUNT,
               "flip_direction_names length must be identical to dsp_flip_direction_t count");
+
+__attribute__((unused)) static inline const char *flip_direction_to_string(dsp_flip_direction_t direction)
+{
+    if (direction < ARRAY_LENGTH(flip_direction_names)) {
+        return flip_direction_names[direction];
+    } else {
+        return "unknown";
+    }
+}
 
 static const char *rotation_angle_names[] = {
     [DSP_ROTATION_ANGLE_0] = "0",
@@ -68,28 +90,29 @@ static const char *rotation_angle_names[] = {
 static_assert(ARRAY_LENGTH(rotation_angle_names) == DSP_ROTATION_ANGLE_COUNT,
               "rotation_angle_names length must be identical to dsp_rotation_angle_t count");
 
-__attribute__((unused)) static inline const char *format_arg_to_string(dsp_image_format_t format)
-{
-    if (format < ARRAY_LENGTH(format_names)) {
-        return format_names[format];
-    } else {
-        return "unknown";
-    }
-}
-
-__attribute__((unused)) static inline const char *flip_direction_to_string(dsp_flip_direction_t direction)
-{
-    if (direction < ARRAY_LENGTH(flip_direction_names)) {
-        return flip_direction_names[direction];
-    } else {
-        return "unknown";
-    }
-}
-
 __attribute__((unused)) static inline const char *rotation_angle_to_string(dsp_rotation_angle_t angle)
 {
     if (angle < ARRAY_LENGTH(rotation_angle_names)) {
         return rotation_angle_names[angle];
+    } else {
+        return "unknown";
+    }
+}
+
+static const char *scaling_mode_names[] = {
+    [DSP_SCALING_MODE_STRETCH] = "stretch",
+    [DSP_SCALING_MODE_LETTERBOX_MIDDLE] = "letterbox middle",
+    [DSP_SCALING_MODE_LETTERBOX_UP_LEFT] = "letterbox up left",
+    [DSP_SCALING_MODE_SCALE_AND_CROP] = "scale & crop",
+};
+
+static_assert(ARRAY_LENGTH(scaling_mode_names) == DSP_SCALING_MODE_COUNT,
+              "scaling_mode_names length must be identical to dsp_scaling_mode_t count");
+
+__attribute__((unused)) static inline const char *scaling_mode_to_string(dsp_scaling_mode_t scaling)
+{
+    if (scaling < ARRAY_LENGTH(scaling_mode_names)) {
+        return scaling_mode_names[scaling];
     } else {
         return "unknown";
     }

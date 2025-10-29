@@ -37,12 +37,6 @@ static_assert((int)INTERFACE_PRIVACY_MASK_COLOR == (int)DSP_PRIVACY_MASK_COLOR,
               "privacy_mask_type_in_data_t must be identical to dsp_privacy_mask_type_t");
 static_assert((int)INTERFACE_PRIVACY_MASK_PIXELIZATION == (int)DSP_PRIVACY_MASK_PIXELIZATION,
               "privacy_mask_type_in_data_t must be identical to dsp_privacy_mask_type_t");
-static_assert((int)DSP_NO_LETTERBOX == (int)INTERFACE_NO_LETTERBOX,
-              "Interface and internal implementation must have the same number for no letterbox");
-static_assert((int)DSP_LETTERBOX_MIDDLE == (int)INTERFACE_LETTERBOX_MIDDLE,
-              "Interface and internal implementation must have the same number for letterbox middle");
-static_assert((int)DSP_LETTERBOX_UP_LEFT == (int)INTERFACE_LETTERBOX_UP_LEFT,
-              "Interface and internal implementation must have the same number for letterbox up_left");
 
 // This function assumes that "image" params is already checked for correctness
 static dsp_status verify_static_privacy_mask_params(const dsp_image_properties_t *image,
@@ -313,6 +307,10 @@ dsp_status dsp_privacy_mask_perf(dsp_device device,
 
         in_data->privacy_mask_args.dynamic_args.masks_count =
             privacy_mask_params->dynamic_privacy_mask_params->masks_count;
+        in_data->privacy_mask_args.dynamic_args.original_aspect_ratio =
+            privacy_mask_params->dynamic_privacy_mask_params->original_aspect_ratio;
+        in_data->privacy_mask_args.dynamic_args.is_aspect_ratio_preserved =
+            privacy_mask_params->dynamic_privacy_mask_params->is_aspect_ratio_preserved;
         for (size_t i = 0; i < privacy_mask_params->dynamic_privacy_mask_params->masks_count; ++i) {
             const auto &src_mask = privacy_mask_params->dynamic_privacy_mask_params->masks[i];
             auto &dst_mask = in_data->privacy_mask_args.dynamic_args.masks[i];
@@ -320,8 +318,6 @@ dsp_status dsp_privacy_mask_perf(dsp_device device,
             dst_mask.input_frame_net_width = src_mask.input_frame_net_width;
             dst_mask.input_frame_net_height = src_mask.input_frame_net_height;
             dst_mask.letterbox = (interface_letterbox_alignment_t)src_mask.letterbox;
-            dst_mask.pre_letterbox_aspect_ratio = src_mask.pre_letterbox_aspect_ratio;
-            dst_mask.is_aspect_ratio_preserved = src_mask.is_aspect_ratio_preserved;
             dst_mask.roi.start_x = src_mask.roi.start_x;
             dst_mask.roi.start_y = src_mask.roi.start_y;
             dst_mask.roi.end_x = src_mask.roi.end_x;

@@ -229,6 +229,19 @@ typedef enum {
     DSP_LETTERBOX_MAX_ENUM = DSP_MAX_ENUM
 } dsp_letterbox_alignment_t;
 
+/** Scaling modes */
+typedef enum {
+    DSP_SCALING_MODE_STRETCH = 0,       /**< Scale to fill without aspect ratio preservation */
+    DSP_SCALING_MODE_LETTERBOX_MIDDLE,  /**< Scale to fit, align the image to the middle */
+    DSP_SCALING_MODE_LETTERBOX_UP_LEFT, /**< Scale to fit, align the image up or left */
+    DSP_SCALING_MODE_SCALE_AND_CROP,    /**< Scale to fill with aspect ratio preservation */
+
+    /* Must be last */
+    DSP_SCALING_MODE_COUNT,
+    /** Max enum value to maintain ABI Integrity */
+    DSP_SCALING_MODE_MAX_ENUM = DSP_MAX_ENUM
+} dsp_scaling_mode_t;
+
 /** Color parameters */
 typedef union {
     struct {
@@ -250,9 +263,21 @@ typedef union {
 typedef struct {
     /** Image alignment */
     dsp_letterbox_alignment_t alignment;
-    /** The color used for letterboxes */
+    /** The color used for letterboxes - should be identical to the image format */
     dsp_color_t color;
 } dsp_letterbox_properties_t;
+
+/** Scaling properties */
+typedef struct {
+    /** Image scaling mode */
+    dsp_scaling_mode_t scaling_mode;
+    /**
+     * The color used for padding if ::DSP_SCALING_MODE_LETTERBOX_MIDDLE
+     * or ::DSP_SCALING_MODE_LETTERBOX_UP_LEFT are used.
+     * Only YUV color is supported.
+     */
+    dsp_color_t color;
+} dsp_scaling_properties_t;
 
 /**
  *  @}
@@ -391,14 +416,8 @@ typedef struct {
      *  Assign NULL on the array entries to reduce the number of outputs.
      */
     const dsp_image_properties_t *dst[DSP_MULTI_RESIZE_OUTPUTS_COUNT];
-    /**
-     * If false, the entire \p crop will be resized to fit each destination resolution.
-     * If true, the field of view will be reduced to maintain the \p crop aspect ratio for destination resolutions with
-     * a different aspect ratio. Each index in the array corresponds to the dst images array,
-     * e.g. keep_aspect_ratio[2] corresponds to dst[2].
-     * @note This field takes effect only in the dsp_telescopic_multi_crop_and_resize API family
-     */
-    bool keep_aspect_ratio[DSP_MULTI_RESIZE_OUTPUTS_COUNT];
+
+    dsp_scaling_properties_t scaling_params[DSP_MULTI_RESIZE_OUTPUTS_COUNT];
 } dsp_crop_resize_params_t;
 
 /** Multi-Resize parameters */
@@ -627,6 +646,7 @@ dsp_status dsp_crop_and_resize(dsp_device device,
  * @param resize_params Pointer to ::dsp_resize_params_t with the required resize parameters
  * @param crop_params Pointer to ::dsp_roi_t with the required crop parameters
  * @param letterbox_params Pointer to ::dsp_letterbox_properties_t with the required letterbox parameters
+ *                         The color format should be identical to the image format
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_crop_and_resize_letterbox(dsp_device device,
@@ -724,18 +744,13 @@ typedef dsp_privacy_mask_t dsp_static_privacy_mask_t;
 typedef struct {
     uint8_t *bytemask;
     /** Dimensions of the input frame that was fed to the neural network
-     * during inference (i.e., the frame used for object detection) */
+     *  during inference (i.e., the frame used for object detection) */
     size_t input_frame_net_width;
     size_t input_frame_net_height;
 
+    /** Whether letterboxing was done when resizing the input frame to the neural network */
     dsp_letterbox_alignment_t letterbox;
 
-    /** Original aspect ratio of the frame that was fed to the neural\
-     * network before letterboxing */
-    float pre_letterbox_aspect_ratio;
-
-    /** Was the aspect ratio preserved when resizing the input image */
-    bool is_aspect_ratio_preserved;
     dsp_roi_t roi;
     /** The amount of edge buffer to add around the bytemask.
      * Values should be in the range of [0, 15]. */
@@ -745,6 +760,12 @@ typedef struct {
 typedef struct {
     dsp_dynamic_privacy_mask_roi_t *masks;
     size_t masks_count;
+    /** Original aspect ratio of the input frame
+     *  before resizing and before letterboxing in the neural network
+     */
+    float original_aspect_ratio;
+    /** Was the aspect ratio preserved when resizing the input image */
+    bool is_aspect_ratio_preserved;
 } dsp_dynamic_privacy_mask_t;
 
 typedef struct {
