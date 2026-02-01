@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(spdlog REQUIRED)
 
 option(DSP_BUILD_TESTS "Build unit tests" OFF)
+option(DSP_BUILD_EXAMPLES "Build examples" OFF)
 option(DSP_BUILD_DOC "Build documentation" OFF)
 
 include(${PROJECT_SOURCE_DIR}/cmake/BuildInfo.cmake)
@@ -21,6 +22,10 @@ add_compile_options(-Wall -Werror -Wextra
 
 add_subdirectory(libhailodsp)
 add_subdirectory(tools)
+if(DSP_BUILD_EXAMPLES)
+  add_subdirectory(examples/image_processing_dmabuf)
+  add_subdirectory(examples/image_processing_opencv)
+endif()
 if(DSP_BUILD_CLI)
   add_subdirectory(internal_cli)
 endif()

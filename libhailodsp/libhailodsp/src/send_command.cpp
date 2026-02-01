@@ -75,11 +75,11 @@ dsp_status send_command(dsp_device device,
                         const void *in_data,
                         size_t in_data_size,
                         void *out_data,
-                        size_t out_data_size)
+                        size_t out_data_size,
+                        const char *nsid)
 {
     return send_command_with_priority(device, [&]() {
-        return driver_send_command(device->fd, IMAGING_NSID, buffer_list, in_data, in_data_size, out_data,
-                                   out_data_size);
+        return driver_send_command(device->fd, nsid, buffer_list, in_data, in_data_size, out_data, out_data_size);
     });
 }
 

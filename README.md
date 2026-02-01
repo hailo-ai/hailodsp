@@ -1,8 +1,12 @@
-# libhailodsp - High-Performance DSP Library #
+# HailoDSP
+
+<p align="left">
+    <img src="banner.png" />
+</p>
 
 ## Introduction
 
-libhailodsp is a high-performance DSP library that provides a set of APIs for running various image processing operations.
+HailoDSP is a high-performance runtime library that provides a set of APIs for running DSP-accelerated image processing operations.
 
 ## Usage
 
@@ -10,7 +14,7 @@ See [**hailo.ai developer zone documentation**](https://hailo.ai/developer-zone/
 
 ## Licenses
 
-libhailodsp is distributed under the MIT license
+HailoDSP is distributed under the MIT license
 
 ## Contact
 

@@ -156,9 +156,9 @@ static dsp_status verify_dynamic_privacy_mask_params(const dsp_dynamic_privacy_m
             invalid_roi = true;
         }
 
-        if (mask_params.dilation_size > 15) {
-            LOGGER__ERROR("Error: dilation_size ({}) must be in the range [0, 15] for dynamic mask[{}]",
-                          mask_params.dilation_size, i);
+        if (mask_params.dilation_size > MAX_PRIVACY_MASK_DILATION_SIZE) {
+            LOGGER__ERROR("Error: dilation_size ({}) must be in the range [0, {}] for dynamic mask[{}]",
+                          mask_params.dilation_size, MAX_PRIVACY_MASK_DILATION_SIZE, i);
             invalid_roi = true;
         }
 
@@ -217,6 +217,52 @@ static dsp_status verify_privacy_mask_params(const dsp_image_properties_t *image
     }
 
     return DSP_SUCCESS;
+}
+
+static void dump_privacy_mask_parameters(const dsp_image_properties_t *image,
+                                         const unified_dsp_privacy_mask_t *privacy_mask_params)
+{
+    LOGGER__ERROR("Parameters provided:");
+    if (image) {
+        LOGGER__ERROR("  - image: width={}, height={}, format={}", image->width, image->height, image->format);
+    }
+
+    if (privacy_mask_params) {
+        LOGGER__ERROR("  - privacy_mask: type={}", privacy_mask_params->type);
+
+        if (privacy_mask_params->type == DSP_PRIVACY_MASK_COLOR) {
+            LOGGER__ERROR("    - color: y={}, u={}, v={}", privacy_mask_params->color.y, privacy_mask_params->color.u,
+                          privacy_mask_params->color.v);
+        } else if (privacy_mask_params->type == DSP_PRIVACY_MASK_PIXELIZATION) {
+            LOGGER__ERROR("    - pixelization_size: {}", privacy_mask_params->pixelization_size);
+        }
+
+        if (privacy_mask_params->static_privacy_mask_params) {
+            const auto &static_params = privacy_mask_params->static_privacy_mask_params;
+            LOGGER__ERROR("  - static_privacy_mask: rois_count={}", static_params->rois_count);
+            for (size_t i = 0; i < static_params->rois_count; ++i) {
+                const auto &roi = static_params->rois[i];
+                LOGGER__ERROR("    - roi[{}]: start_x={}, start_y={}, end_x={}, end_y={}", i, roi.start_x, roi.start_y,
+                              roi.end_x, roi.end_y);
+            }
+        }
+
+        if (privacy_mask_params->dynamic_privacy_mask_params) {
+            const auto &dynamic_params = privacy_mask_params->dynamic_privacy_mask_params;
+            LOGGER__ERROR("  - dynamic_privacy_mask: masks_count={}, original_aspect_ratio={}, scaling_mode={}",
+                          dynamic_params->masks_count, dynamic_params->original_aspect_ratio,
+                          dynamic_params->scaling_mode);
+            for (size_t i = 0; i < dynamic_params->masks_count; ++i) {
+                const auto &mask = dynamic_params->masks[i];
+                LOGGER__ERROR(
+                    "    - mask[{}]: input_frame_net_width={}, input_frame_net_height={}, letterbox={}, "
+                    "dilation_size={}",
+                    i, mask.input_frame_net_width, mask.input_frame_net_height, mask.letterbox, mask.dilation_size);
+                LOGGER__ERROR("      - roi: start_x={}, start_y={}, end_x={}, end_y={}", mask.roi.start_x,
+                              mask.roi.start_y, mask.roi.end_x, mask.roi.end_y);
+            }
+        }
+    }
 }
 
 dsp_status dsp_privacy_mask_perf(dsp_device device,
@@ -309,8 +355,8 @@ dsp_status dsp_privacy_mask_perf(dsp_device device,
             privacy_mask_params->dynamic_privacy_mask_params->masks_count;
         in_data->privacy_mask_args.dynamic_args.original_aspect_ratio =
             privacy_mask_params->dynamic_privacy_mask_params->original_aspect_ratio;
-        in_data->privacy_mask_args.dynamic_args.is_aspect_ratio_preserved =
-            privacy_mask_params->dynamic_privacy_mask_params->is_aspect_ratio_preserved;
+        in_data->privacy_mask_args.dynamic_args.scaling_mode =
+            privacy_mask_params->dynamic_privacy_mask_params->scaling_mode;
         for (size_t i = 0; i < privacy_mask_params->dynamic_privacy_mask_params->masks_count; ++i) {
             const auto &src_mask = privacy_mask_params->dynamic_privacy_mask_params->masks[i];
             auto &dst_mask = in_data->privacy_mask_args.dynamic_args.masks[i];
@@ -348,6 +394,9 @@ dsp_status dsp_privacy_mask_perf(dsp_device device,
 
     if (status != DSP_SUCCESS) {
         LOGGER__ERROR("Error: Failed executing privacy mask operation. Error code: {}", status);
+        if (status == DSP_RUN_COMMAND_FAILED) {
+            dump_privacy_mask_parameters(image, privacy_mask_params);
+        }
     }
 
     return status;

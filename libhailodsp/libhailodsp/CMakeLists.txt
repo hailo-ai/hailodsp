@@ -40,9 +40,10 @@ add_library(
   src/gaussian.cpp
   src/laplacian.cpp
   src/priority_queue.cpp
-  src/privacy_mask.cpp)
+  src/privacy_mask.cpp
+  src/dsp_direct.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.9.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.10.0)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

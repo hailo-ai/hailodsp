@@ -37,11 +37,12 @@ typedef struct {
 } command_image_t;
 
 dsp_status send_command(dsp_device device,
-                        BufferList &buffers,
+                        BufferList &buffer_list,
                         const void *in_data,
                         size_t in_data_size,
                         void *out_data,
-                        size_t out_data_size);
+                        size_t out_data_size,
+                        const char *nsid = IMAGING_NSID);
 
 dsp_status send_command(dsp_device device,
                         std::vector<command_image_t> images,

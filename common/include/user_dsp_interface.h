@@ -44,6 +44,7 @@
 #define MAX_MULTI_FILTERS (80)
 #define MAX_FILTER_KERNEL_SIZE (33)
 #define HISTOGRAM_EQUALIZATION_LUT_SIZE (256)
+#define MAX_PRIVACY_MASK_DILATION_SIZE (15)
 
 #define IDMA_TEST_NSID "idmaidmaidmaidma"
 #define IDMA_PERF_TEST_NSID "perfidmaperfidma"
@@ -54,6 +55,7 @@
 #define UTILIZATION_NSID "utilizationcheck"
 #define DDR_TRAFFIC_NSID "ddrddrddrtraffic"
 #define STRESS_NSID "stressstresstest"
+#define XRP_SUCCESS_NSID "successsuccesssuc"
 
 #pragma pack(push, 4)
 
@@ -186,7 +188,7 @@ typedef struct {
     dynamic_privacy_mask_roi_t masks[MAX_DYNAMIC_PRIVACY_MASKS];
     uint32_t masks_count;
     float original_aspect_ratio;
-    uint8_t is_aspect_ratio_preserved;
+    uint8_t scaling_mode;
 } dynamic_privacy_mask_in_data_t;
 
 typedef struct {
