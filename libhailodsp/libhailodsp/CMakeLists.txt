@@ -43,7 +43,7 @@ add_library(
   src/privacy_mask.cpp
   src/dsp_direct.cpp)
 
-set_target_properties(hailodsp PROPERTIES VERSION 1.10.1)
+set_target_properties(hailodsp PROPERTIES VERSION 1.11.0)
 
 # cmake-lint: disable=E1120
 # https://github.com/cheshirekow/cmake_format/issues/218

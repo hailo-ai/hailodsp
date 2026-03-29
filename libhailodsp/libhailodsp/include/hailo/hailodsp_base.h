@@ -53,7 +53,7 @@ typedef enum {
     DSP_RUN_COMMAND_FAILED,         /**< Failed running the requested command. Check Kernel or FW logs */
     DSP_MAP_BUFFER_FAILED,          /**< Failed mapping buffer */
     DSP_UNMAP_BUFFER_FAILED,        /**< Failed unmapping buffer */
-    DSP_SYNC_BUFFER_FAILED,         /**< Failed synching buffer */
+    DSP_SYNC_BUFFER_FAILED,         /**< Failed syncing buffer */
     DSP_IOCTL_FAILED,               /**< General error for driver communication failure */
     DSP_TIMEOUT,                    /**< Timeout occurred */
     DSP_ABORTED,                    /**< Operation was aborted */
@@ -104,7 +104,7 @@ dsp_status dsp_set_priority(dsp_device device, priority_t priority);
 
 /**
  *  @}
- *  @defgroup buffer_mgnt Buffer Managment API
+ *  @defgroup buffer_mgnt Buffer Management API
  *  @{
  */
 
@@ -126,7 +126,7 @@ typedef enum {
  *
  * @param device A ::dsp_device object
  * @param size Required buffer size to allocate
- * @param[out] buffer A pointer to void* that recieves the allocated buffer
+ * @param[out] buffer A pointer to void* that receives the allocated buffer
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  * @note To release a buffer, call ::dsp_release_buffer with the returned pointer
  */

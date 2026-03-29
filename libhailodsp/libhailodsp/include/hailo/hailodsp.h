@@ -157,7 +157,7 @@ typedef struct {
     size_t end_y;
 } dsp_roi_t;
 
-/** Interploation methods */
+/** Interpolation methods */
 typedef enum {
     INTERPOLATION_TYPE_NEAREST_NEIGHBOR, /**< Nearest neighbor interpolation */
     INTERPOLATION_TYPE_BILINEAR,         /**< Bilinear interpolation */
@@ -170,7 +170,7 @@ typedef enum {
     INTERPOLATION_TYPE_MAX_ENUM = DSP_MAX_ENUM
 } dsp_interpolation_type_t;
 
-/** Letterbox aligment types */
+/** Letterbox alignment types */
 typedef enum {
     DSP_NO_LETTERBOX = 0,  /**< No letterbox resizing is performed */
     DSP_LETTERBOX_MIDDLE,  /**< Align the image to the middle */
@@ -530,6 +530,7 @@ dsp_status dsp_multi_crop_and_resize(dsp_device device, const dsp_multi_crop_res
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ * @deprecated This function is deprecated. Use ::dsp_frontend_process instead.
  */
 dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
                                                   const dsp_multi_crop_resize_params_t *mutli_crop_resize_params,
@@ -560,6 +561,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize(dsp_device device,
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @param privacy_mask_params Pointer to ::dsp_privacy_mask_t with the required privacy mask parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ * @deprecated This function is deprecated. Use ::dsp_frontend_process instead.
  */
 dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
     dsp_device device,
@@ -578,7 +580,7 @@ dsp_status dsp_telescopic_multi_crop_and_resize_privacy_mask(
  * @param image_enhancement_params Pointer to ::dsp_image_enhancement_params_t with the required image enhancement
  *                                 parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
- * @warning This function is for usage by Hailo Media Library and may change on later releases
+ * @deprecated This function is deprecated. Use ::dsp_frontend_process instead.
  */
 dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
     dsp_device device,
@@ -586,6 +588,15 @@ dsp_status dsp_telescopic_multi_resize_privacy_mask_image_enhancement(
     const dsp_privacy_mask_t *privacy_mask_params,
     const dsp_image_enhancement_params_t *image_enhancement_params);
 
+/**
+ * @brief Perform MediaLibrary frontend operations
+ * @details This function combines multiple frontend operations including multi crop&resize,
+ *          image enhancement, and flip/rotate operations.
+ * @param device A ::dsp_device object
+ * @param params Pointer to ::dsp_frontend_params_t with the required parameters
+ * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
+ * @warning This function is for usage by Hailo Media Library and may change on later releases
+ */
 dsp_status dsp_frontend_process(dsp_device device, const dsp_frontend_params_t *params);
 
 /**
@@ -690,7 +701,7 @@ typedef dsp_roi_t dsp_blur_roi_t;
 
 /**
  * @brief Perform box blur operation
- * @details Box blur (filter) an array of regions of interet (ROIs) in a base image.
+ * @details Box blur (filter) an array of regions of interest (ROIs) in a base image.
  *          The base image data is overwritten with the blurred result.
  *          Supported formats are ::DSP_IMAGE_FORMAT_GRAY8 and ::DSP_IMAGE_FORMAT_NV12
  * @param device A ::dsp_device object
@@ -795,7 +806,7 @@ typedef struct {
     int dy;
 } dsp_isp_vsm_t;
 
-/** Angular tehta filter parameters */
+/** Angular theta filter parameters */
 typedef struct {
     /** Maximum allowed theta angle */
     float maximum_theta;
@@ -1041,7 +1052,7 @@ dsp_status dsp_gaussian(dsp_device device, dsp_gaussian_params_t *params);
  * @details Perform multiple gaussian operations as described in ::dsp_gaussian
  * @param device A ::dsp_device object
  * @param params Pointer to an array of ::dsp_gaussian_params_t with the required parameters
- * @param params_count Number of entrie in the \p params array
+ * @param params_count Number of entries in the \p params array
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_multi_gaussian(dsp_device device, dsp_gaussian_params_t *params, size_t params_count);
@@ -1072,7 +1083,7 @@ dsp_status dsp_laplacian(dsp_device device, dsp_laplacian_params_t *params);
  * @details Perform multiple laplacian operations as described in ::dsp_laplacian
  * @param device A ::dsp_device object
  * @param params Pointer to an array of ::dsp_laplacian_params_t with the required parameters
- * @param params_count Number of entrie in the \p params array
+ * @param params_count Number of entries in the \p params array
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error
  */
 dsp_status dsp_multi_laplacian(dsp_device device, dsp_laplacian_params_t *params, size_t params_count);
