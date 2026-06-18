@@ -21,10 +21,11 @@ int main(int argc, char **argv)
                  "Batch mode - Starts tool in Batch mode, which could be useful for sending output to other programs "
                  "or to a file. In this mode, the tool will run until the iterations limit you've set with the `-i' "
                  "command-line option. The last utilization value will be returned as the tool's exit code.");
-    app.add_option("-i,--iterations", iteration_count,
-                   "Number of iterations - Specifies the maximum number of iterations the tool should produce before "
-                   "ending. The default value is 0, which means iterate forever.")
-        ->check(CLI::NonNegativeNumber);
+    auto *iterations_opt =
+        app.add_option("-i,--iterations", iteration_count,
+                       "Number of iterations - Specifies the maximum number of iterations the tool should produce "
+                       "before ending. The default value is 0, which means iterate forever.")
+            ->check(CLI::NonNegativeNumber);
     app.add_option(
            "-d,--delay", delay_time,
            "Delay time - Specifies the delay between screen updates in seconds. Fractional seconds are honored.")
@@ -32,8 +33,8 @@ int main(int argc, char **argv)
 
     CLI11_PARSE(app, argc, argv);
 
-    if (batch_mode && iteration_count == 0) {
-        iteration_count = 1; // Default value for batch mode
+    if (batch_mode && iterations_opt->count() == 0) {
+        iteration_count = 1; // Default value for batch mode when -i is not provided
     }
 
     dsp_device device = nullptr;

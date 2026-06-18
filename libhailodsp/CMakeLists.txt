@@ -10,7 +10,6 @@ find_package(spdlog REQUIRED)
 
 option(DSP_BUILD_TESTS "Build unit tests" OFF)
 option(DSP_BUILD_EXAMPLES "Build examples" OFF)
-option(DSP_BUILD_DOC "Build documentation" OFF)
 
 include(${PROJECT_SOURCE_DIR}/cmake/BuildInfo.cmake)
 
@@ -31,7 +30,4 @@ if(DSP_BUILD_CLI)
 endif()
 if(DSP_BUILD_TESTS)
   add_subdirectory(tests)
-endif()
-if(DSP_BUILD_DOC)
-  add_subdirectory(doc)
 endif()

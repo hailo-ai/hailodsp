@@ -42,7 +42,7 @@ class ThreadLocalBuffer {
         thread_local ThreadLocalBuffer instance;
 
         if (!instance.m_memory) {
-            auto dma_heap_fd = file_descriptor(new int(open("/dev/dma_heap/linux,cma", O_RDWR)), &close_deleter);
+            auto dma_heap_fd = file_descriptor(new int(open("/dev/dma_heap/linux,cma", O_RDWR | O_CLOEXEC)), &close_deleter);
             if (*dma_heap_fd < 0) {
                 LOGGER__ERROR("Failed to open dma heap: {}", strerror(errno));
                 return nullptr;
