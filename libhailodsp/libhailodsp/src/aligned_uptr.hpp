@@ -32,5 +32,7 @@ using unique_ptr_aligned = std::unique_ptr<T, decltype(&free)>;
 template <class T>
 unique_ptr_aligned<T> make_aligned_uptr(size_t align = getpagesize())
 {
-    return unique_ptr_aligned<T>(static_cast<T *>(aligned_alloc(align, sizeof(T))), &free);
+    /* aligned_alloc() is defined only for a size that is a multiple of the alignment */
+    const size_t size = ((sizeof(T) + align - 1) / align) * align;
+    return unique_ptr_aligned<T>(static_cast<T *>(aligned_alloc(align, size)), &free);
 }

@@ -899,9 +899,17 @@ dsp_status dsp_multi_crop_and_resize_perf(dsp_device device,
         in_data->multi_crop_and_resize_args.privacy_mask.bitmask.xrp_buffer_index = buffer_list.add_buffer(
             privacy_mask_params->bitmask, bitmask_stride * bitmask_height, BufferAccessType::Read);
 
-        in_data->multi_crop_and_resize_args.privacy_mask.color.y = privacy_mask_params->color.y;
-        in_data->multi_crop_and_resize_args.privacy_mask.color.u = privacy_mask_params->color.u;
-        in_data->multi_crop_and_resize_args.privacy_mask.color.v = privacy_mask_params->color.v;
+        /* The request buffer is reused between operations, so the type has to be written even though
+           verify_privacy_mask_params() only lets DSP_PRIVACY_MASK_COLOR reach this entry point */
+        in_data->multi_crop_and_resize_args.privacy_mask.type =
+            static_cast<privacy_mask_type_in_data_t>(privacy_mask_params->type);
+        if (privacy_mask_params->type == DSP_PRIVACY_MASK_COLOR) {
+            in_data->multi_crop_and_resize_args.privacy_mask.color.y = privacy_mask_params->color.y;
+            in_data->multi_crop_and_resize_args.privacy_mask.color.u = privacy_mask_params->color.u;
+            in_data->multi_crop_and_resize_args.privacy_mask.color.v = privacy_mask_params->color.v;
+        } else {
+            in_data->multi_crop_and_resize_args.privacy_mask.blur_radius = privacy_mask_params->blur_radius;
+        }
 
         in_data->multi_crop_and_resize_args.privacy_mask.rois_count = privacy_mask_params->rois_count;
         for (size_t i = 0; i < privacy_mask_params->rois_count; ++i) {

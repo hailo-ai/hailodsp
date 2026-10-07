@@ -145,6 +145,10 @@ typedef struct {
 /** Region of Interest (ROI)
  * @brief This struct is used by image processing APIs to specify a region of interest (ROI) in an image.
  * @note All fields are in pixel units
+ * @note On subsampled formats an odd start_x or start_y cannot be expressed on the chroma plane, which carries
+ *       one sample per two luma pixels: such an origin resolves to the chroma sample that contains it. The luma
+ *       plane uses the coordinate as given, so the two planes can differ by up to one luma pixel. Pass even
+ *       origins to avoid that difference.
  */
 typedef struct {
     /** Offset of the left most pixel in the ROI. valid range: [0, width-1] */
@@ -314,8 +318,10 @@ typedef struct {
      * (1 = apply privacy mask, 0 = don't apply). The bitmask should cover the entire input image,
      * such that each bit in the bitmask represents 4x4 pixels in the original image
      * e.g. a bitmask for a 4K image should be 120x540 bytes in size
-     * @note The stride of the bitmask should be divisible by 8, so padding may be required.
-     * This padding is ignored and only the actual bitmask width is used
+     * @note Within a byte the most significant bit is the leftmost 4x4 block, i.e. bit 7 covers pixel columns 0-3,
+     * bit 6 covers columns 4-7 and so on.
+     * @note The stride of the bitmask is ceil(width / 32) bytes rounded up to a multiple of 8, so padding may be
+     * required. This padding is ignored and only the actual bitmask width is used
      */
     uint8_t *bitmask;
     /** The type of the privacy mask */
@@ -331,6 +337,9 @@ typedef struct {
      * Since the bitmask covers the entire input image, it's advisable to specify a rectangular ROI surrounding each
      * polygon. This will allow the DSP to ignore coloring the pixels outside the ROI, and thus improve performance. For
      * simpler (and slower) usage, it is possible to pass 1 ROI which covers the entire image.
+     * @note The ROIs are a performance hint only. Bitmask bits that are set outside the ROIs may or may not be
+     * applied (the DSP processes the ROIs in vector-wide strips and may cover pixels next to a ROI edge), so the
+     * bitmask itself must be clear wherever the mask is not wanted.
      * @note The ROI coordinates are for a 4x4 quantized image.
      * @note Supports between 1 and 8 \p rois.
      */
@@ -543,6 +552,9 @@ dsp_status dsp_multi_crop_and_resize_privacy_mask(dsp_device device,
  *          Supported formats of the operation is ::DSP_IMAGE_FORMAT_NV12.
  *          The formats of the src image and dst image must be identical.
  *          The destination image can only be upscaled or downscaled up to a factor of 32.
+ *          The destinations of each crop must be ordered largest first: every \p dst must be no larger than the
+ *          one before it, after the scaling mode is applied. A growing list is rejected with
+ *          ::DSP_INVALID_ARGUMENT.
  * @param device A ::dsp_device object
  * @param mutli_crop_resize_params Pointer to ::dsp_multi_crop_resize_params_t with the required resize parameters
  * @return Upon success, returns ::DSP_SUCCESS. Otherwise, returns a ::dsp_status error

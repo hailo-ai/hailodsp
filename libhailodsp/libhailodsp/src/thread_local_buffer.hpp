@@ -42,7 +42,17 @@ class ThreadLocalBuffer {
         thread_local ThreadLocalBuffer instance;
 
         if (!instance.m_memory) {
-            auto dma_heap_fd = file_descriptor(new int(open("/dev/dma_heap/linux,cma", O_RDWR | O_CLOEXEC)), &close_deleter);
+#ifdef DSP_BACKEND_ISS
+            /* Nothing maps this buffer but the process itself: the simulator
+               backend copies it over a pipe, so it needs no dma-heap page. */
+            void *memory = mmap(NULL, sizeof(T), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (memory == MAP_FAILED) {
+                LOGGER__ERROR("Failed to allocate memory: {}", strerror(errno));
+                return nullptr;
+            }
+#else
+            auto dma_heap_fd =
+                file_descriptor(new int(open("/dev/dma_heap/linux,cma", O_RDWR | O_CLOEXEC)), &close_deleter);
             if (*dma_heap_fd < 0) {
                 LOGGER__ERROR("Failed to open dma heap: {}", strerror(errno));
                 return nullptr;
@@ -66,6 +76,7 @@ class ThreadLocalBuffer {
                 LOGGER__ERROR("Failed to mmap memory: {}", strerror(errno));
                 return nullptr;
             }
+#endif
 
             instance.m_memory = std::shared_ptr<T>(static_cast<T *>(memory), &unmap_deleter);
         }
